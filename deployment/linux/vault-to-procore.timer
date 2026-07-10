@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Vault to Procore synchronization every 15 minutes
+
+[Timer]
+# Persistent catches a missed run after a reboot. The small random delay avoids
+# every scheduled integration hitting shared services at the same second.
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target
