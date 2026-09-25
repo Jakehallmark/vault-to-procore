@@ -13,7 +13,7 @@ public sealed class MainForm : Form
     private readonly TextBox mappings = new() { Multiline = true, Height = 100, ScrollBars = ScrollBars.Vertical };
     private readonly TextBox details = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
     private readonly Label summary = new() { AutoSize = true, Padding = new Padding(0, 8, 0, 8) };
-    private readonly Label status = new() { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(12, 7, 12, 7), Text = "Vault and Procore Drive connections must be verified before scanning." };
+    private readonly Label status = new() { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(12, 7, 12, 7), Text = "Ready. Configure folders or try the sample." };
     private readonly DataGridView grid = new()
     {
         Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
@@ -30,9 +30,6 @@ public sealed class MainForm : Form
         this.store = store;
         settings = store.LoadSettings();
         report = store.Latest();
-        // Previous local demonstration settings and reviews must not enter the live workflow.
-        if (settings.Mode == Settings.LocalTest) settings = new Settings();
-        if (report?.Settings.Mode == Settings.LocalTest) report = null;
         Text = "Vault Transfer — review before copying";
         Font = new Font("Segoe UI", 10);
         Size = new Size(1220, 860); MinimumSize = new Size(980, 760);
@@ -71,10 +68,10 @@ public sealed class MainForm : Form
             layout.Controls.Add(Label(text), 0, row); control.Dock = DockStyle.Top;
             control.Margin = new Padding(3, 4, 3, 9); layout.Controls.Add(control, 1, row);
         }
-        mode.Items.Add(new Settings().Mode);
+        mode.Items.AddRange([new Settings().Mode, Settings.LocalTest]);
         Add("Connection mode", mode);
         Add("Connection status", new Label { AutoSize = true, ForeColor = Color.DarkSlateGray,
-            Text = "Real Vault 2024 and Procore Drive connections are required. Scanning is unavailable until they are verified.\nThe app runs only while you open it. No scheduled task or service is installed." });
+            Text = "Local test mode copies between ordinary folders only. Vault and Procore Drive are not connected.\nThe app runs only while you open it. No scheduled task or service is installed." });
         Control Folder(TextBox box)
         {
             var panel = new TableLayoutPanel { AutoSize = true, ColumnCount = 2 };
@@ -94,9 +91,11 @@ public sealed class MainForm : Form
         Add("Included extensions", extensions);
         Add("Excluded paths", exclusions);
         Add("Project folder mappings", mappings);
-        Add("Rule format", new Label { AutoSize = true, Text = "Extensions: .pdf, .dwg (blank includes all). Exclusions: one wildcard pattern per line.\nMappings: one per line, for example 001234 = Project A\\Documents\nProject pattern: one capture group; matched against folder names. Folders below the project are preserved." });
+        Add("Rule format", new Label { AutoSize = true, 
+        Text = "Extensions: .pdf, .dwg (blank includes all). Exclusions: one wildcard pattern per line.\nMappings: one per line, for example 001234 = Project A\\Documents\nProject pattern: one capture group; matched against folder names. Folders below the project are preserved." });
         var buttons = new FlowLayoutPanel { AutoSize = true };
         buttons.Controls.Add(Action("Save settings", SaveSettings));
+        buttons.Controls.Add(Action("Load sample folders", LoadSample));
         buttons.Controls.Add(Action("Scan and review", async () => await ScanAsync()));
         Add("", buttons);
         page.Controls.Add(layout); tabs.TabPages.Add(page);
@@ -142,8 +141,6 @@ public sealed class MainForm : Form
             using var dialog = new OpenFileDialog { Filter = "Saved review (*.json)|*.json", InitialDirectory = store.ReportsFolder };
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             var loaded = AppStore.Read<ScanReport>(dialog.FileName);
-            if (loaded.Settings.Mode == Settings.LocalTest)
-                throw new InvalidDataException("Local demonstration reviews cannot be used for company transfers.");
             if (!Guid.TryParseExact(loaded.Id, "N", out _) || loaded.SettingsFingerprint != loaded.Settings.Fingerprint())
                 throw new InvalidDataException("This is not a valid saved review.");
             report = loaded; RefreshReport(); tabs.SelectedIndex = 1;
@@ -190,6 +187,21 @@ public sealed class MainForm : Form
         store.SaveSettings(value); settings = value;
         status.Text = report is not null && report.SettingsFingerprint != value.Fingerprint()
             ? "Settings saved. Scan again and review before copying." : "Settings saved.";
+    }
+
+    private void LoadSample()
+    {
+        var root = Path.Combine(store.Root, "samples", Guid.NewGuid().ToString("N"));
+        var input = Path.Combine(root, "source");
+        Directory.CreateDirectory(Path.Combine(input, "001234 - Sample project", "Drawings"));
+        Directory.CreateDirectory(Path.Combine(input, "001234 - Sample project", "Archive"));
+        File.WriteAllText(Path.Combine(input, "001234 - Sample project", "Drawings", "Example.txt"), "Sample drawing placeholder. No company data.\n");
+        File.WriteAllText(Path.Combine(input, "001234 - Sample project", "Drawings", "Review-me.txt"), "Approve or deny this second example.\n");
+        File.WriteAllText(Path.Combine(input, "001234 - Sample project", "Archive", "Old.txt"), "Excluded example.\n");
+        File.WriteAllText(Path.Combine(input, "001234 - Sample project", "Notes.bin"), "Excluded extension.\n");
+        ApplySettings(new Settings { Mode = Settings.LocalTest, SourceFolder = input, StagingFolder = Path.Combine(root, "staging"),
+            DestinationFolder = Path.Combine(root, "destination"), Extensions = [".txt"], ProjectFolders = new() { ["001234"] = "Sample project\\Documents" } });
+        SaveSettings(); status.Text = "Sample folders created. Scan, select rows, then approve or deny. Copying affects only these sample folders.";
     }
 
     private async Task RunWork(Func<CancellationToken, IProgress<string>, Task> operation)
@@ -250,7 +262,7 @@ public sealed class MainForm : Form
     private void RefreshReport()
     {
         grid.Rows.Clear();
-        if (report is null) { summary.Text = "No live scan yet. Verify Vault and Procore Drive connections first."; return; }
+        if (report is null) { summary.Text = "No scan yet. Start in Settings or load the sample folders."; return; }
         var selected = filter.SelectedItem?.ToString();
         foreach (var item in report.Items.Where(i => selected == "All items" || selected == i.Decision || selected == i.Status))
         {
@@ -289,4 +301,30 @@ public sealed class MainForm : Form
         catch (Exception error) { MessageBox.Show(this, error.Message, "Check settings", MessageBoxButtons.OK, MessageBoxIcon.Information); }
     }
 
+    public async Task LoadPreview()
+    {
+        LoadSample(); await ScanAsync();
+        if (report is null || report.Items.Count != 4 || !report.Complete) throw new Exception("Preview scan failed.");
+        var suggestions = report.Items.Where(i => i.Status == "Suggested").ToArray();
+        grid.ClearSelection();
+        grid.Rows.Cast<DataGridViewRow>().Single(r => ((ReviewItem)r.Tag!).Id == suggestions[0].Id).Selected = true;
+        Decide("Approved");
+        grid.Rows.Cast<DataGridViewRow>().Single(r => ((ReviewItem)r.Tag!).Id == suggestions[1].Id).Selected = true;
+        Decide("Denied");
+        if (report.Items.Count(i => i.Decision == "Approved") != 1 || report.Items.Count(i => i.Decision == "Denied") != 1)
+            throw new Exception("UI decisions did not apply to selected rows.");
+        tabs.SelectedIndex = 0;
+        await Task.Delay(100);
+        if (mode.Text != Settings.LocalTest) throw new Exception("The selected connection mode is not displayed correctly.");
+        Refresh();
+        using (var settingsImage = new Bitmap(Width, Height))
+        {
+            DrawToBitmap(settingsImage, new Rectangle(0, 0, Width, Height));
+            settingsImage.Save(Path.Combine("test-results", "settings-preview.png"));
+        }
+        tabs.SelectedIndex = 1;
+        await CopyAsync();
+        if (report.Items.Count(i => i.Status == "Test copied") != 1 || report.Items.Count(i => i.Decision == "Denied") != 1)
+            throw new Exception("UI copy action did not preserve approval decisions.");
+    }
 }
