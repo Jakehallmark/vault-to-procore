@@ -1,6 +1,0 @@
-# Runtime HTTP client. The upper bound prevents an unattended deployment from
-# silently taking a future breaking major release.
-requests>=2.31,<3
-
-# Build-only dependency for self-contained executables:
-# pyinstaller>=6.0,<7

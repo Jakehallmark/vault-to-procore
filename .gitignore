@@ -9,3 +9,18 @@ dist/
 *.spec
 logs/
 *.lock
+bin/
+obj/
+test-results/
+reports/
+.dotnet-local/
+.nuget-local/
+*.user
+*.suo
+.vs/
+
+# Local development-tool settings
+.agents/
+.codex/
+.cursor/
+.claude/

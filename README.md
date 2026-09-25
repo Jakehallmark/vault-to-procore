@@ -1,71 +1,89 @@
-# Autodesk Vault to Procore Sync
+# Vault Transfer
 
-Incrementally copies selected Autodesk Vault documents into matching Procore projects while preserving directory paths and document version history.
+A manually launched Windows app intended to scan Autodesk Vault Professional 2024, apply company rules, present a transfer report for approval or denial, stage approved file versions locally, and automatically upload them through the installed Procore Drive application.
 
-## Safety and behavior
+## Current status
 
-- Procore projects are keyed by unique five- or six-digit project numbers.
-- Vault files use their immutable Vault file ID as identity; paths are not identities.
-- A SQLite ledger (`sync_state.db`) prevents unchanged Vault versions from being checked and uploaded repeatedly.
-- A new Vault file creates a Procore document. A new Vault version appends a version to the existing Procore document.
-- Conflicting or ambiguous matches are logged and skipped.
-- The connector never deletes Procore documents.
-- Dry-run is the default. Uploads require the explicit `--live` flag.
+**The separate Vault connection check succeeded on the work laptop. The C# app and Procore Drive connection are not yet a complete live proof of concept.** The previous local demonstration did not meet the required workflow. Its sample generator, sample button, preview command, and user-selectable local test mode have been removed. Old demonstration reviews are not accepted by the app.
 
-## Setup
+The work-laptop inventory completed with 159,675 records across 14,997 folders. The single-project download test then copied all three selected files, and the user confirmed the local files and preserved folder structure. This verifies the separate PowerShell workflow, not yet the C# app integration.
 
-1. Create a virtual environment and install `requirements.txt`.
-2. Copy `.env.example` to `.env`.
-3. Fill in the base URLs, company ID, approved routes, and access tokens when credentials are available.
-4. Run `python vault_to_procore_sync.py --dry-run --verbose`.
-5. After validating the plan, run `python vault_to_procore_sync.py --live`.
+## Next milestone: Procore project inventory and matching
 
-`--live` also requires `API_CONTRACT_CONFIRMED=true`. Keep this safety gate disabled until the exact Vault Data API response contract and Procore upload/folder/version workflow have passed integration tests in a non-production project.
+`ImportProjectInventory.ps1` now imports the Portfolio CSV and the Vault JSON-lines inventory into a versioned local JSON snapshot under `reports`. It retains source records, source hashes, import time, exact-number matches, missing numbers, and duplicate-number exceptions. The supplied export contains 568 rows and yields 304 unambiguous number matches. All 568 Procore rows were verified to appear exactly once in the comparison. Project IDs and active status remain unknown because this CSV does not supply them; Stage is not treated as active status.
 
-Useful operational commands:
+Run on the work laptop using actual source file paths:
 
-```text
-vault-to-procore --validate-config
-vault-to-procore --validate-config --live
-vault-to-procore --status
-vault-to-procore --dry-run --verbose
-vault-to-procore --live
-vault-to-procore --live --service
+```powershell
+powershell.exe -NoProfile -File .\ImportProjectInventory.ps1 -ProcoreCsv .\projects.csv -VaultInventory .\inventory.jsonl -CompanyName 'PowerSecure, Inc.'
 ```
 
-Only use `--service` when a continuously running process is required. Scheduled one-shot execution is the recommended deployment model.
+Use the actual Vault filename (`inventory.json1` if its extension is a digit 1). Each import preserves previous snapshots. This is a working manual-import helper, not yet integrated into the C# UI. Automatic API refresh still requires Procore app registration, company installation, and OAuth setup. The CSV snapshot is not asserted to be a complete company inventory.
 
-## Unattended deployment
+Uploads are deferred. First retrieve the projects visible to the user's account in the chosen Procore company and produce a read-only comparison with the Vault inventory.
 
-Build on the same operating system and CPU architecture as the target server. The PyInstaller output contains Python and application dependencies, so the target machine does not need a separate Python installation.
+- Retain Procore company and project identifiers where available, project name, project number, and active/inactive status where available.
+- Match exact company project numbers; preserve original values and leading zeros. Any extraction from project names must use a confirmed naming rule.
+- Report unique exact matches, Vault-only projects, Procore-only projects, and ambiguous/missing-number entries requiring review. Duplicate project numbers must not be automatically resolved by name similarity.
+- Retain the full Vault project path because more than one folder can share a project number.
+- Record enumeration completeness and filters. An incomplete list cannot establish that a project is absent.
+- Matching does not approve any files or trigger downloads/uploads.
 
-### Windows
+Procore inventory access remains unverified. The public API requires its own authorized integration; an existing Drive login is not proof of API access. Inspect the work laptop's Drive project selector before choosing how the app will read its project list. Do not assume a visible subset of a scrolling list is the complete inventory.
 
-1. Run `deployment\build.ps1` on Windows.
-2. Run `deployment\windows\install-task.ps1` from an elevated PowerShell session.
-3. Edit `C:\ProgramData\VaultToProcore\.env` and validate it.
-4. Manually start the `VaultToProcoreSync` scheduled task for the first controlled run.
+The C# settings, review controls, saved-report handling, and local file-copy primitives remain as development code. Their isolated tests do not prove Vault access or Procore uploads. The current app blocks scanning until the real connections are implemented; there is no automatic fallback to local folders.
 
-The scheduled task runs every 15 minutes by default, prevents overlapping instances, retries failures, and starts missed runs after a reboot.
+## Initial file-type selection
 
-### Linux
+Initial configurable allowlist: `.pdf`, `.rdb`, `.sup`, `.urs`, `.usw`, `.wset`,
+`.zap14`, `.zap15`, `.zap15_1`, `.zap16`, `.zap17`, `.zap18`, `.s7s`, `.cd3`, `.cd31`, `.cd32`.
+The supplied ZAP15 selection is interpreted to include the observed `.zap15_1` extension.
+ZAP14 is included as confirmed by the user.
+These are candidate types only; project/folder rules and individual approvals still apply.
+Defaults apply to new settings; previously saved settings retain their existing extension list.
 
-1. Run `deployment/build.sh` on a compatible Linux build machine.
-2. Run `deployment/linux/install.sh` as root.
-3. Edit `/etc/vault-to-procore/vault-to-procore.env`.
-4. Validate with `/opt/vault-to-procore/vault-to-procore --validate-config --live` after loading the environment file.
-5. Start with `systemctl enable --now vault-to-procore.timer`.
+## Required first proof of concept
 
-The service is hardened, runs under a dedicated unprivileged account, and is activated by a persistent systemd timer.
+1. Establish an authenticated, supported connection to the installed Vault Professional 2024 environment under the user's own account.
+2. Scan an actual configured Vault folder and show real file identities, versions, paths, and proposed project mappings without copying files.
+3. Allow approval or denial of the real suggestions.
+4. Retrieve the approved Vault versions into the configured local staging folder.
+5. Automatically upload those staged files through Procore Drive into the approved company, project, and folder.
+6. Confirm upload completion before reporting success. Preserve staging and record failures when the upload cannot be confirmed.f
 
-## Operations
+The first controlled run must use real files. Broader recursive scanning follows verification of the actual connection and transfer workflow. No sample-data step is part of the product or handoff.
 
-The application uses a cross-platform PID lock, rotating logs, bounded exponential retry for transient HTTP failures, SQLite audit events, and a status command. Credentials remain external to the executable. Restrict the configuration file to the service identity on either platform.
+## Work-laptop details needed
 
-The HTTP gateway routes and payload parsing are isolated from the sync engine. Confirm them against the exact Vault Data API deployment and approved Procore API application before the first live run.
+- Vault Professional 2024 folder: `C:\Program Files\Autodesk\Vault Client 2024\Explorer` (reported). The installed SDK libraries still need verification.
+- Windows authentication and the read-only root-folder query succeeded on the work laptop, as confirmed by the user. VPN access is required. Do not share passwords or tokens.
+- Procore Drive version: **3.0.7** (reported). The upload controls still need inspection on that installation.
+- Company project-number rules and approved real source/destination locations, configured on the work laptop.
 
-The current gateway is an integration scaffold, not a certified live Procore upload implementation. Procore's supported workflow first creates an upload, sends bytes to the returned storage URL and fields, and then uses the upload UUID to create `/rest/v1.0/files` or `/rest/v1.0/file_versions`. Recursive folder lookup/creation and unattended OAuth token refresh must also be finalized when the API application and Vault deployment details are available.
+A running signed-in desktop application does not by itself establish a reusable connection for a separate application. Verify that connection explicitly. Do not assume Procore Drive exposes a normal writable filesystem destination.
 
-## Version metadata
+`VaultConnectionCheck.ps1` uses the installed Vault libraries under Windows PowerShell 5.1, establishes read-
+only Windows authentication, and queries the real Vault root. The user has confirmed this succeeds on the work laptop. The development copy also accepts `-ScanProjects` to invoke the new inventory before logging out. The inventory uses the documented folder/file traversal approach: [Autodesk's file enumeration guidance](https://blog.autodesk.io/coding-for-performance-getting-all-files/).
 
-Every upload supplies source metadata including the Vault file ID, Vault version ID and number, source path, SHA-256 checksum, synchronization timestamp, and a version comment. The final representation of this metadata depends on the enabled Procore API fields; the local SQLite ledger always retains the authoritative cross-system mapping.
+## Manual execution
+
+No scheduled task, service, startup entry, or installer is used. The current shell targets C# / Windows Forms / .NET 10. Its compatibility with the Vault 2024 SDK must be verified before implementing the live connection; a version-compatible helper may be required.
+
+Development build:
+
+```powershell
+dotnet restore VaultTransfer.csproj --configfile NuGet.Config
+dotnet build VaultTransfer.csproj --no-restore
+```
+
+Internal copy-engine tests are available through `--self-test`. They use temporary files and are not an application demonstration or a live integration test.
+
+## Manual source entry
+
+See [WORK-LAPTOP.md](WORK-LAPTOP.md). Pause entry at the former `LoadSample` method while the connection-specific corrections are being established. Existing code before that point can remain; it is not yet the final live implementation.
+
+## References
+
+- [Autodesk Vault API and SDK](https://aps.autodesk.com/developer/overview/vault)
+- [Vault Professional 2024 installed components](https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Components-installed-by-Vault-Professional-2024-Client.html)
+- [Procore Drive upload procedure](https://support.procore.com/products/procore-drive/documents/tutorials/upload-files-into-a-folder-in-procore-drive)
