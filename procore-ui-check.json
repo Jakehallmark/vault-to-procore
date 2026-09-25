@@ -1,0 +1,596 @@
+﻿[
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3888 - 140147DD-HAT - Harris Teeter 419",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3897 - 140045DA-WAL - Walmart 3313",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3898 - 140064DA-WAL - Walmart 3533",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3899 - 140047DA-WAL - Walmart 5099",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3900 - 140001DD-GRY - Mount Sinai Medical Center (MSMC)",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3913 - 140001DD-ETP - Lee Memorial Healthpark Children Hospital (Golisano)",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5112 - 150001DA-NBD - Norbord",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5357 - 160048DD-POW - Town of Bedford - Substation",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5555 - 170001DD-SMC - Springhill Medical Center",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5661 - 170006DA-MDT - City of Bennettsville",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100737 - WM SUPERCENTER Store 1349 (PAID)",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100740 - FY22 WM 5932 SUPRCTR PembrokePines",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100747 - FY22 WM 1517 SUPRCTR Pampano Beach",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100750 - FY22 WM 1511 SUPRCTR Miramar, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100757 - FY22 WM 2151 SUPRCTR Sunrise, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100759 - FY22 WM 2176 SUPRCTR Jupiter, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100774 - FY22 WM 4595 SUPRCTR Plantation, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101045 - FY23 WM 1680 MIAMI, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101066 - FY23 WM 4595 Plantation, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101083 - FY23 WM 1349 Sunrise, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101086 - FY23 WM 5932 Pembrook Pines, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101093 - FY23 WM 1511 Miramar, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  true
+    },
+    {
+        "Name":  "101097 - FY23 WM 2151 Sunrise, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Select Company",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  true
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3888 - 140147DD-HAT - Harris Teeter 419",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3897 - 140045DA-WAL - Walmart 3313",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3898 - 140064DA-WAL - Walmart 3533",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3899 - 140047DA-WAL - Walmart 5099",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3900 - 140001DD-GRY - Mount Sinai Medical Center (MSMC)",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "3913 - 140001DD-ETP - Lee Memorial Healthpark Children Hospital (Golisano)",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5112 - 150001DA-NBD - Norbord",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5357 - 160048DD-POW - Town of Bedford - Substation",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5555 - 170001DD-SMC - Springhill Medical Center",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "5661 - 170006DA-MDT - City of Bennettsville",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100737 - WM SUPERCENTER Store 1349 (PAID)",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100740 - FY22 WM 5932 SUPRCTR PembrokePines",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100747 - FY22 WM 1517 SUPRCTR Pampano Beach",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100750 - FY22 WM 1511 SUPRCTR Miramar, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100757 - FY22 WM 2151 SUPRCTR Sunrise, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100759 - FY22 WM 2176 SUPRCTR Jupiter, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "100774 - FY22 WM 4595 SUPRCTR Plantation, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101045 - FY23 WM 1680 MIAMI, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101066 - FY23 WM 4595 Plantation, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101083 - FY23 WM 1349 Sunrise, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101086 - FY23 WM 5932 Pembrook Pines, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "101093 - FY23 WM 1511 Miramar, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore.Explorer.ViewModels.ProjectVM",
+        "ControlType":  "ControlType.ListItem",
+        "AutomationId":  "",
+        "Offscreen":  true
+    },
+    {
+        "Name":  "101097 - FY23 WM 2151 Sunrise, FL",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Select Project",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "jacob.hallmark@powersecure.com",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "1",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  false
+    },
+    {
+        "Name":  "Procore Drive Software Update Required",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  true
+    },
+    {
+        "Name":  "You are using an outdated version of Procore Drive that is no longer supported. To continue using Procore Drive, click the Update Software button to visit our Support page where you can download and install the latest version.",
+        "ControlType":  "ControlType.Text",
+        "AutomationId":  "",
+        "Offscreen":  true
+    },
+    {
+        "Name":  "Update Software",
+        "ControlType":  "ControlType.Button",
+        "AutomationId":  "",
+        "Offscreen":  true
+    }
+]

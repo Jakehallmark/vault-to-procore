@@ -6,17 +6,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
-if ($null -eq $Connection) { throw 'An active Vault connection is required.' }
-if (-not $ScanRoot.StartsWith('$/')) { throw 'Use a Vault path beginning with $/.' }
+if ($null -eq $Connection) { throw 'An Active Vault connection is required' }
+if (-not $ScanRoot.StartsWith('$/')) { throw 'Use a vault path beginning with $/.' }
 
 $Documents = $Connection.WebServiceManager.DocumentService
 $StartFolder = $Documents.GetFolderByPath($ScanRoot)
 if ($null -eq $StartFolder) { throw ('Vault folder was not found: ' + $ScanRoot) }
 
-$RunFolder = Join-Path $ReportFolder ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$RunFolder = Join-Path $ReportFolder ((Get-Date -Format 'yyyyMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 [void][IO.Directory]::CreateDirectory($RunFolder)
 $CsvPath = Join-Path $RunFolder 'inventory.partial.csv'
-$JsonPath = Join-Path $RunFolder 'inventory.partial.jsonl'
+$JsonPath = Join-Path $RunFolder 'inventory.partial.json1'
 $Csv = $null
 $Json = $null
 $Folders = New-Object 'System.Collections.Generic.Stack[object]'
@@ -25,7 +25,7 @@ $Folders.Push($StartFolder)
 $FileCount = 0
 $FolderCount = 0
 $Finished = $false
-$Failure = 'Interrupted before completion.'
+$Failure = 'Interupted before completion.'
 $Started = [DateTime]::UtcNow.ToString('o')
 
 try {
@@ -34,9 +34,8 @@ try {
     $Csv.WriteLine('VaultPath,FileName,FileId,MasterId,Version,Decision')
     while ($Folders.Count -gt 0) {
         $Folder = $Folders.Pop()
-        if (-not $Seen.Add([long]$Folder.Id)) { throw 'A folder was returned twice; scan stopped for review.' }
+        if (-not $Seen.Add([long]$Folder.Id)) { throw 'A folder was returned twice; stopped for review' }
         Write-Host ('Scanning: ' + $Folder.FullName)
-        # Include hidden file records returned to this authenticated user.
         foreach ($VaultFile in $Documents.GetLatestFilesByFolderId($Folder.Id, $true)) {
             if ($null -eq $VaultFile) { continue }
             $Record = [pscustomobject][ordered]@{
@@ -46,12 +45,10 @@ try {
                 MasterId = [string]$VaultFile.MasterId
                 Version = [int]$VaultFile.VerNum
                 Decision = 'Pending'
-            }
+            } 
             $Json.WriteLine(($Record | ConvertTo-Json -Compress))
-            # Spreadsheet text prefixes prevent names from being treated as formulas.
-            # JSONL retains exact metadata for later import into the app.
             $Cells = foreach ($Value in @($Record.VaultPath, $Record.FileName, $Record.FileId, $Record.MasterId, $Record.Version, $Record.Decision)) {
-                '"' + ("'" + [string]$Value).Replace('"', '""') + '"'
+                '"' + ('"' + [string]$value).Replace('"', '"') + '"'
             }
             $Csv.WriteLine(($Cells -join ','))
             $FileCount++
@@ -64,8 +61,9 @@ try {
         $Json.Flush()
     }
     $Finished = $true
-    $Failure = $null
+    $Failure  = $null
 }
+
 catch {
     $Failure = $_.Exception.Message
     throw
@@ -76,12 +74,12 @@ finally {
     $Summary = [ordered]@{
         ScanRoot = $ScanRoot; StartedUtc = $Started; EndedUtc = [DateTime]::UtcNow.ToString('o')
         EnumerationFinished = $Finished; Folders = $FolderCount; Files = $FileCount; Error = $Failure
-        Scope = 'Latest file records returned to this user; includes hidden records. No project matching or transfers.'
+        Scope = 'All Counts'
     }
     $Summary | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $RunFolder 'scan-summary.json') -Encoding UTF8
     Write-Host ('Reports: ' + $RunFolder)
 }
 
 Move-Item -LiteralPath $CsvPath -Destination (Join-Path $RunFolder 'inventory.csv')
-Move-Item -LiteralPath $JsonPath -Destination (Join-Path $RunFolder 'inventory.jsonl')
-Write-Host ('SCAN COMPLETE: ' + $FileCount + ' file records in ' + $FolderCount + ' folders. No files transferred.')
+Move-Item -LiteralPath $JsonPath -Destination (Join-Path $RunFolder 'inventory.json1')
+Write-Host ('Scan Complete: ' + $FileCount + ' file records in ' + $FolderCount + ' folders.')

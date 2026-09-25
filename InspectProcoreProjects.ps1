@@ -1,4 +1,3 @@
-# Run while Procore Drive's project dropdown is open, with its search box empty.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
