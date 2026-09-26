@@ -15,9 +15,7 @@ public sealed class MonitorForm : Form
     private readonly TextBox findProject = new() { Dock = DockStyle.Top, PlaceholderText = "Find a project" };
     private readonly Label projectTitle = new() { AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), Margin = new Padding(0, 0, 0, 4) };
     private readonly Label projectDetail = new() { AutoSize = true, MaximumSize = new Size(760, 0) };
-    private readonly TextBox server = new() { Width = 360 };
-    private readonly TextBox database = new() { Width = 360 };
-    private readonly Label vaultNote = new() { AutoSize = true, MaximumSize = new Size(520, 0), Visible = false, Text = "Taken from Vault Professional. Sign-in uses your Windows account." };
+    private readonly Label vaultNote = new() { AutoSize = true, MaximumSize = new Size(520, 0), Text = "Vault uses the server and database saved in Vault Professional." };
     private readonly Label procoreState = new() { AutoSize = true, MaximumSize = new Size(520, 0) };
     private readonly NumericUpDown interval = new() { Minimum = 1, Maximum = 24, Value = 4, Width = 64 };
     private readonly CheckBox schedule = new() { Text = "Scan on a schedule", AutoSize = true, Checked = true };
@@ -25,7 +23,7 @@ public sealed class MonitorForm : Form
     private readonly Panel reviewView = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly Panel changesView = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly Panel settingsView = new() { Dock = DockStyle.Fill, Visible = false, Padding = new Padding(20) };
-    private readonly Label status = new() { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(12, 8, 12, 0) };
+    private readonly Label status = new() { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(16, 8, 16, 0), AutoEllipsis = true };
     private readonly List<Button> navigation = [];
     private readonly System.Windows.Forms.Timer clock = new() { Interval = 30_000 };
     private DateTimeOffset nextScan = DateTimeOffset.UtcNow.AddMinutes(1);
@@ -66,8 +64,6 @@ public sealed class MonitorForm : Form
         Controls.Add(settingsView);
         Controls.Add(bar);
         Controls.Add(status);
-        server.Text = catalog.GetSetting("vault_server", "");
-        database.Text = catalog.GetSetting("vault_database", "");
         ApplyVaultLogin();
         interval.Value = int.TryParse(catalog.GetSetting("interval_hours", "4"), out var hours) ? Math.Clamp(hours, 1, 24) : 4;
         schedule.Checked = catalog.GetSetting("schedule_enabled", "true") == "true";
@@ -239,10 +235,8 @@ public sealed class MonitorForm : Form
             control.Margin = new Padding(0, 4, 0, 8);
             layout.Controls.Add(control, 1, row);
         }
-        Add("Vault server", server);
-        Add("Vault database", database);
-        Add("", vaultNote);
-        Add("", procoreState);
+        Add("Vault", vaultNote);
+        Add("Procore", procoreState);
         Add("", ActionButton("Sign in to Procore", SignInProcoreAsync));
         Add("Scan every", interval);
         var hours = new Label { Text = "hours", AutoSize = true, Margin = new Padding(8, 8, 0, 0) };
@@ -362,8 +356,6 @@ public sealed class MonitorForm : Form
 
     private void SaveSettings()
     {
-        catalog.SetSetting("vault_server", server.Text.Trim());
-        catalog.SetSetting("vault_database", database.Text.Trim());
         catalog.SetSetting("interval_hours", interval.Value.ToString());
         catalog.SetSetting("schedule_enabled", schedule.Checked ? "true" : "false");
         status.Text = "Saved.";
@@ -459,16 +451,13 @@ public sealed class MonitorForm : Form
         try
         {
             var login = VaultProfessionalLogin.Read();
-            if (login is null) return;
-            server.Text = login.Value.Server;
-            database.Text = login.Value.Database;
-            server.ReadOnly = true;
-            database.ReadOnly = true;
-            vaultNote.Visible = true;
+            vaultNote.Text = login is null
+                ? "Vault uses the server and database saved in Vault Professional."
+                : "Vault Professional: " + login.Value.Server + " / " + login.Value.Database;
         }
         catch (InvalidDataException error)
         {
-            status.Text = error.Message;
+            vaultNote.Text = error.Message;
         }
     }
 
@@ -483,8 +472,6 @@ public sealed class MonitorForm : Form
             var script = Path.Combine(scriptFolder, "VaultConnectionCheck.ps1");
             if (!File.Exists(script)) throw new InvalidDataException("Vault scan script is not next to the app.");
             var arguments = "-NoProfile -File \"" + script + "\" -ScanProjects -ProjectsOnly";
-            if (!server.ReadOnly && server.Text.Trim().Length > 0 && database.Text.Trim().Length > 0)
-                arguments += " -Server \"" + server.Text.Trim() + "\" -Vault \"" + database.Text.Trim() + "\"";
             var progress = new Progress<string>(text => { if (text.StartsWith("Scanning:", StringComparison.Ordinal)) status.Text = text; });
             var output = await RunProcess(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", arguments, progress, cancel);
             var inventory = Newest(Path.Combine(scriptFolder, "reports"), "inventory.jsonl", started);
@@ -565,7 +552,7 @@ public sealed class MonitorForm : Form
         process.WaitForExit();
         string text;
         lock (output) text = output.ToString();
-        if (process.ExitCode != 0) throw new InvalidDataException(Tail(text));
+        if (process.ExitCode != 0) throw new InvalidDataException(PlainError(text));
         return text;
     }
 
@@ -583,6 +570,19 @@ public sealed class MonitorForm : Form
     {
         text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
         return text.Length <= 400 ? text : text[^400..];
+    }
+
+    private static string PlainError(string text)
+    {
+        foreach (var raw in text.Split('\r', '\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith('+') || line.StartsWith("At ", StringComparison.Ordinal)) continue;
+            if (line.StartsWith("throw ", StringComparison.Ordinal) || line.StartsWith("CategoryInfo", StringComparison.OrdinalIgnoreCase)) continue;
+            if (line.Contains("FullyQualifiedErrorId", StringComparison.Ordinal) || line.Contains("RuntimeException", StringComparison.Ordinal)) continue;
+            return line.Length <= 240 ? line : line[..240];
+        }
+        return "The scan did not finish.";
     }
 
     private static string MatchLabel(string match) => match switch

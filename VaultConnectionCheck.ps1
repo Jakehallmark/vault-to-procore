@@ -100,8 +100,8 @@ try {
         $Vault = $Remembered.Database
         Write-Host ('Using the server and database saved by Vault Professional: ' + $Server + ' / ' + $Vault)
     }
-    elseif ([string]::IsNullOrWhiteSpace($Server) -or [string]::IsNullOrWhiteSpace($Vault)) {
-        throw 'Vault Professional has no saved server and database. Sign in to Vault Professional, then scan again.'
+    else {
+        Write-Host ('Using ' + $Server + ' / ' + $Vault)
     }
 
     [Autodesk.DataManagement.Client.Framework.Vault.Library]::Initialize($false)
