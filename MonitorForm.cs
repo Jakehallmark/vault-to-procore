@@ -328,10 +328,8 @@ public sealed class MonitorForm : Form
             running = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             try
             {
-                status.Text = "Opening Procore sign-in. Approve it in the browser.";
-                var script = Path.Combine(scriptFolder, "ConnectProcoreProduction.ps1");
-                await RunProcess("pwsh", "-NoProfile -File \"" + script + "\" -SignInOnly", running.Token);
-                if (!File.Exists(ProcoreTokenPath())) throw new InvalidDataException("Procore sign-in did not save.");
+                var progress = new Progress<string>(text => status.Text = text);
+                await new ProcoreClient().SignIn(scriptFolder, progress, running.Token);
                 status.Text = "Procore sign-in saved.";
             }
             catch (Exception error)
@@ -417,14 +415,11 @@ public sealed class MonitorForm : Form
     private async Task ScanProcore(CancellationToken cancel)
     {
         var id = catalog.StartScan("Procore");
-        var started = DateTimeOffset.UtcNow.AddSeconds(-2);
         try
         {
-            var script = Path.Combine(scriptFolder, "ConnectProcoreProduction.ps1");
-            var output = await RunProcess("pwsh", "-NoProfile -File \"" + script + "\" -IncludeDetails -SkipComparison", cancel);
-            var report = Newest(Path.Combine(scriptFolder, "reports"), "projects.json", started);
-            if (report is null) throw new InvalidDataException("Procore scan did not finish. " + Tail(output));
-            var count = catalog.ApplyProcoreProjects(Catalog.ReadProcoreProjects(report));
+            var progress = new Progress<string>(text => status.Text = text);
+            var projects = await new ProcoreClient().Scan(scriptFolder, progress, cancel);
+            var count = catalog.ApplyProcoreProjects(projects);
             catalog.FinishScan(id, "Succeeded", count + " changes.");
             status.Text = "Procore scan finished. " + count + " " + Plural(count, "change") + ".";
         }

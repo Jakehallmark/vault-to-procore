@@ -7,7 +7,7 @@ internal static class Program
     {
         if (args.Contains("--self-test"))
         {
-            var failures = SelfTests.Run() + CatalogTests.Run();
+            var failures = SelfTests.Run() + CatalogTests.Run() + ProcoreClient.SelfTest();
             return failures == 0 ? 0 : 1;
         }
         ApplicationConfiguration.Initialize();
