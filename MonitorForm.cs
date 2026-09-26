@@ -18,7 +18,7 @@ public sealed class MonitorForm : Form
     private readonly TextBox server = new() { Width = 360 };
     private readonly TextBox database = new() { Width = 360 };
     private readonly Label vaultNote = new() { AutoSize = true, MaximumSize = new Size(520, 0), Visible = false, Text = "Taken from Vault Professional. Sign-in uses your Windows account." };
-    private readonly Label procoreNote = new() { AutoSize = true, MaximumSize = new Size(520, 0), Text = "The first Procore scan opens a browser. After that, scans sign in on their own." };
+    private readonly Label procoreState = new() { AutoSize = true, MaximumSize = new Size(520, 0) };
     private readonly NumericUpDown interval = new() { Minimum = 1, Maximum = 24, Value = 4, Width = 64 };
     private readonly CheckBox schedule = new() { Text = "Scan on a schedule", AutoSize = true, Checked = true };
     private readonly Panel projectsView = new() { Dock = DockStyle.Fill };
@@ -51,6 +51,8 @@ public sealed class MonitorForm : Form
         var scan = new Button { Text = "Scan now", AutoSize = true, Margin = new Padding(24, 0, 0, 0) };
         scan.Click += async (_, _) => { SaveSettings(); await ScanAsync(manual: true); };
         bar.Controls.Add(scan);
+        bar.Controls.Add(ActionButton("Sign in to Procore", SignInProcoreAsync));
+        bar.Controls.Add(ActionButton("Scan Procore", ScanProcoreAsync));
         BuildProjects();
         BuildReview();
         BuildChanges();
@@ -70,6 +72,8 @@ public sealed class MonitorForm : Form
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => ShowWindow());
         menu.Items.Add("Scan now", null, async (_, _) => await ScanAsync(manual: true));
+        menu.Items.Add("Sign in to Procore", null, async (_, _) => await SignInProcoreAsync());
+        menu.Items.Add("Scan Procore", null, async (_, _) => await ScanProcoreAsync());
         menu.Items.Add("Exit", null, (_, _) => { exiting = true; Close(); });
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => ShowWindow();
@@ -87,7 +91,15 @@ public sealed class MonitorForm : Form
         };
         ShowProjects();
         Reload();
+        UpdateProcoreSignIn();
         status.Text = "Next scan at " + nextScan.ToLocalTime().ToString("h:mm tt") + ".";
+    }
+
+    private Button ActionButton(string text, Func<Task> action)
+    {
+        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
+        button.Click += async (_, _) => await action();
+        return button;
     }
 
     private Button Nav(string text, Action show)
@@ -190,7 +202,11 @@ public sealed class MonitorForm : Form
         Add("Vault server", server);
         Add("Vault database", database);
         Add("", vaultNote);
-        Add("", procoreNote);
+        Add("", procoreState);
+        var procoreActions = new FlowLayoutPanel { AutoSize = true };
+        procoreActions.Controls.Add(ActionButton("Sign in to Procore", SignInProcoreAsync));
+        procoreActions.Controls.Add(ActionButton("Scan Procore", ScanProcoreAsync));
+        Add("", procoreActions);
         Add("Scan every", interval);
         var hours = new Label { Text = "hours", AutoSize = true, Margin = new Padding(8, 8, 0, 0) };
         var hoursRow = new FlowLayoutPanel { AutoSize = true };
@@ -292,7 +308,7 @@ public sealed class MonitorForm : Form
             {
                 status.Text = "Scanning Vault.";
                 await ScanVault(running.Token);
-                var savedSignIn = File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VaultTransfer", "procore.refresh"));
+                var savedSignIn = File.Exists(ProcoreTokenPath());
                 status.Text = savedSignIn ? "Signing in to Procore." : "Signing in to Procore. A browser window will open once.";
                 await ScanProcore(running.Token);
                 nextScan = DateTimeOffset.UtcNow.AddHours((double)interval.Value);
@@ -304,6 +320,55 @@ public sealed class MonitorForm : Form
         if (!started && manual) status.Text = "A scan is already running.";
         Reload();
     }
+
+    private async Task SignInProcoreAsync()
+    {
+        var started = await scans.TryRun(async cancel =>
+        {
+            running = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+            try
+            {
+                status.Text = "Opening Procore sign-in. Approve it in the browser.";
+                var script = Path.Combine(scriptFolder, "ConnectProcoreProduction.ps1");
+                await RunProcess("pwsh", "-NoProfile -File \"" + script + "\" -SignInOnly", running.Token);
+                if (!File.Exists(ProcoreTokenPath())) throw new InvalidDataException("Procore sign-in did not save.");
+                status.Text = "Procore sign-in saved.";
+            }
+            catch (Exception error)
+            {
+                status.Text = error.Message;
+            }
+            finally { running.Dispose(); running = null; }
+        });
+        if (!started) status.Text = "A scan is already running.";
+        UpdateProcoreSignIn();
+    }
+
+    private async Task ScanProcoreAsync()
+    {
+        var started = await scans.TryRun(async cancel =>
+        {
+            running = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+            try
+            {
+                var savedSignIn = File.Exists(ProcoreTokenPath());
+                status.Text = savedSignIn ? "Scanning Procore." : "Scanning Procore. A browser window will open for sign-in.";
+                await ScanProcore(running.Token);
+            }
+            finally { running.Dispose(); running = null; }
+        });
+        if (!started) status.Text = "A scan is already running.";
+        UpdateProcoreSignIn();
+        Reload();
+    }
+
+    private static string ProcoreTokenPath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VaultTransfer", "procore.refresh");
+
+    private void UpdateProcoreSignIn() =>
+        procoreState.Text = File.Exists(ProcoreTokenPath())
+            ? "Procore sign-in is saved on this computer."
+            : "Procore sign-in is not saved. Use Sign in to Procore, then Scan Procore.";
 
     private void ApplyVaultLogin()
     {
@@ -361,6 +426,7 @@ public sealed class MonitorForm : Form
             if (report is null) throw new InvalidDataException("Procore scan did not finish. " + Tail(output));
             var count = catalog.ApplyProcoreProjects(Catalog.ReadProcoreProjects(report));
             catalog.FinishScan(id, "Succeeded", count + " changes.");
+            status.Text = "Procore scan finished. " + count + " " + Plural(count, "change") + ".";
         }
         catch (Exception error)
         {

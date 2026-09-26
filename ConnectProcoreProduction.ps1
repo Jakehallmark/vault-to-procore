@@ -8,7 +8,8 @@ param(
     [string]$TokenFile = (Join-Path $env:LOCALAPPDATA 'VaultTransfer\procore.refresh'),
     [string]$ResumeReport,
     [switch]$ManualCallback,
-    [switch]$SkipComparison
+    [switch]$SkipComparison,
+    [switch]$SignInOnly
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
@@ -31,7 +32,7 @@ try {
     try { $InstanceLock = [IO.File]::Open((Join-Path $RuntimeFolder ('production-' + $CompanyId + '.lock')), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
     catch { throw 'Another production inventory run is already open for this company. Close it before starting another.' }
     $CooldownPath = Join-Path $RuntimeFolder ('production-' + $CompanyId + '-cooldown.json')
-    if (Test-Path -LiteralPath $CooldownPath) {
+    if (-not $SignInOnly -and (Test-Path -LiteralPath $CooldownPath)) {
         $Cooldown = Get-Content -LiteralPath $CooldownPath -Raw | ConvertFrom-Json
         if ($Cooldown.CompanyId -cne $CompanyId) { throw 'Saved cooldown company does not match.' }
         Wait-ProcoreUntil ([DateTimeOffset]::Parse($Cooldown.NextAllowedUtc))
@@ -50,7 +51,8 @@ try {
         }
         Write-Host ('Vault comparison source: ' + $VaultSnapshot)
     }
-    Write-Host ('Production read-only inventory. Company ID: ' + $CompanyId + '. No documents will be changed.')
+    if ($SignInOnly) { Write-Host 'Opening Procore sign-in. No projects will be read.' }
+    else { Write-Host ('Production read-only inventory. Company ID: ' + $CompanyId + '. No documents will be changed.') }
     if (Test-Path -LiteralPath $SecretsFile -PathType Leaf) {
         $Credentials = Read-ProcoreProductionCredentials $SecretsFile
         if ($ClientId -and $ClientId -cne $Credentials['Client ID']) { $Credentials.Clear(); throw 'Client ID does not match the production credentials file.' }
@@ -63,7 +65,7 @@ try {
     if (-not $ClientId) { throw 'Production Client ID is required.' }
     if (-not $Secret) { $Secret = Read-ProcoreHidden 'Paste the production client secret (input hidden)' }
     if ([string]::IsNullOrWhiteSpace($Secret)) { throw 'Production client secret is required.' }
-    $SavedRefresh = Read-ProcoreRefreshToken $TokenFile
+    $SavedRefresh = if ($SignInOnly) { $null } else { Read-ProcoreRefreshToken $TokenFile }
     if ($SavedRefresh) {
         Write-Host 'Signing in to Procore with the saved sign-in.'
         $Form = @{ grant_type = 'refresh_token'; client_id = $ClientId; client_secret = $Secret; refresh_token = $SavedRefresh; redirect_uri = 'http://localhost' }
@@ -111,6 +113,10 @@ try {
     if ($null -ne $Form) { $Form.Clear() }; $Form = $null; $Secret = $null; $Callback = $null; $Code = $null; $TokenResponse = $null; $Token = $null
     $Me = Invoke-ProcoreReliableGet $Session 'https://api.procore.com/rest/v1.0/me'
     if ($null -eq $Me -or $Me.PSObject.Properties.Name -notcontains 'id') { throw 'Could not verify the signed-in user.' }
+    if ($SignInOnly) {
+        Write-Host 'Procore sign-in saved.'
+        return
+    }
     Write-Host 'Production sign-in succeeded. Reading company projects...'
     $Run = Join-Path $OutputFolder ('procore-production-' + [guid]::NewGuid().ToString('N'))
     [void][IO.Directory]::CreateDirectory($Run)
