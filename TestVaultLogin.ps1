@@ -32,6 +32,19 @@ try {
     try { Get-VaultProfessionalLogin -Path $Path | Out-Null } catch { $Refused = $true }
     Assert $Refused 'A non-Windows Vault login was accepted.'
     Assert ($null -eq (Get-VaultProfessionalLogin -Path (Join-Path $Root 'missing.xml'))) 'A missing preferences file returned a login.'
+    $Secrets = Join-Path $Root '.secrets'
+    @'
+#Production
+Client ID: app-id
+Client Secret: hidden
+#Vault Client
+ClientFolder: C:\Program Files\Autodesk\Vault Client 2024\Explorer
+Server: https://psvault2024.ps.local
+Vault: DI_Vault
+'@ | Set-Content -LiteralPath $Secrets -Encoding UTF8
+    $FromFile = Get-VaultClientSecrets -Path $Secrets
+    Assert ($FromFile.ClientFolder -ceq 'C:\Program Files\Autodesk\Vault Client 2024\Explorer' -and $FromFile.Server -ceq 'https://psvault2024.ps.local' -and $FromFile.Vault -ceq 'DI_Vault') 'Vault client settings were not read from .secrets.'
+    Assert ($null -eq (Get-VaultClientSecrets -Path (Join-Path $Root 'missing.secrets'))) 'A missing .secrets file returned Vault client settings.'
 }
 finally { Remove-Item -LiteralPath $Root -Recurse -Force }
 Write-Host ("PASS " + $Passed)

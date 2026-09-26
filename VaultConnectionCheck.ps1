@@ -33,10 +33,50 @@ function Get-VaultProfessionalLogin {
     return [pscustomobject]@{ Server = $ServerName; Database = $DatabaseName }
 }
 
+function Get-VaultClientSecrets {
+    param([string]$Path)
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    $Section = $false
+    $ClientFolder = ''
+    $Server = ''
+    $Vault = ''
+    foreach ($Raw in [IO.File]::ReadAllLines($Path)) {
+        $Line = $Raw.Trim()
+        if (-not $Line) { continue }
+        if ($Line.StartsWith('#')) {
+            $Section = $Line -eq '#Vault Client'
+            continue
+        }
+        if (-not $Section) { continue }
+        $Index = $Line.IndexOf(':')
+        if ($Index -lt 1) { throw 'Invalid Vault client entry. Expected ClientFolder:, Server:, or Vault:.' }
+        $Key = $Line.Substring(0, $Index).Trim()
+        $Value = $Line.Substring($Index + 1).Trim()
+        switch ($Key) {
+            'ClientFolder' { if ($ClientFolder) { throw 'Duplicate Vault client entry.' }; $ClientFolder = $Value }
+            'Server' { if ($Server) { throw 'Duplicate Vault client entry.' }; $Server = $Value }
+            'Vault' { if ($Vault) { throw 'Duplicate Vault client entry.' }; $Vault = $Value }
+            default { throw 'Invalid Vault client entry. Expected ClientFolder:, Server:, or Vault:.' }
+        }
+    }
+    if (-not $ClientFolder -and -not $Server -and -not $Vault) { return $null }
+    return [pscustomobject]@{ ClientFolder = $ClientFolder; Server = $Server; Vault = $Vault }
+}
+
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 if ($PSVersionTable.PSEdition -ne 'Desktop' -or -not [Environment]::Is64BitProcess) {
     throw 'Run this check in 64-bit Windows PowerShell 5.1, not PowerShell 7.'
+}
+
+$FromSecrets = Get-VaultClientSecrets -Path (Join-Path $PSScriptRoot '.secrets')
+$UsingSecrets = $false
+if ($null -ne $FromSecrets) {
+    if ($FromSecrets.ClientFolder) { $ClientFolder = $FromSecrets.ClientFolder }
+    if ($FromSecrets.Server) { $Server = $FromSecrets.Server }
+    if ($FromSecrets.Vault) { $Vault = $FromSecrets.Vault }
+    $UsingSecrets = [bool]$FromSecrets.Server -and [bool]$FromSecrets.Vault
+    if ($UsingSecrets) { Write-Host ('Using the Vault server and database in .secrets: ' + $Server + ' / ' + $Vault) }
 }
 
 # Load the installed Vault libraries in their supported .NET Framework host.
@@ -94,14 +134,17 @@ try {
     foreach ($Name in $LibraryNames) {
         [void][Reflection.Assembly]::LoadFrom((Join-Path $ClientFolder $Name))
     }
-    $Remembered = Get-VaultProfessionalLogin -Path $PreferencesPath
-    if ($null -ne $Remembered) {
-        $Server = $Remembered.Server
-        $Vault = $Remembered.Database
-        Write-Host ('Using the server and database saved by Vault Professional: ' + $Server + ' / ' + $Vault)
+    if (-not $UsingSecrets) {
+        $Remembered = Get-VaultProfessionalLogin -Path $PreferencesPath
+        if ($null -ne $Remembered) {
+            $Server = $Remembered.Server
+            $Vault = $Remembered.Database
+            Write-Host ('Using the server and database saved by Vault Professional: ' + $Server + ' / ' + $Vault)
+        }
+        else { Write-Host ('Using ' + $Server + ' / ' + $Vault) }
     }
-    else {
-        Write-Host ('Using ' + $Server + ' / ' + $Vault)
+    if ([string]::IsNullOrWhiteSpace($Server) -or [string]::IsNullOrWhiteSpace($Vault)) {
+        throw 'Vault server and database are not set. Add them under #Vault Client in .secrets.'
     }
 
     [Autodesk.DataManagement.Client.Framework.Vault.Library]::Initialize($false)

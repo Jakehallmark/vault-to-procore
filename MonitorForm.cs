@@ -450,9 +450,15 @@ public sealed class MonitorForm : Form
     {
         try
         {
+            var fromFile = VaultProfessionalLogin.ReadSecrets(scriptFolder);
+            if (fromFile is not null && fromFile.Value.Server.Length > 0 && fromFile.Value.Vault.Length > 0)
+            {
+                vaultNote.Text = "Vault: " + fromFile.Value.Server + " / " + fromFile.Value.Vault;
+                return;
+            }
             var login = VaultProfessionalLogin.Read();
             vaultNote.Text = login is null
-                ? "Vault uses the server and database saved in Vault Professional."
+                ? "Vault uses the server and database in .secrets."
                 : "Vault Professional: " + login.Value.Server + " / " + login.Value.Database;
         }
         catch (InvalidDataException error)

@@ -22,6 +22,37 @@ internal static class VaultProfessionalLogin
         return (server, database);
     }
 
+    public static (string ClientFolder, string Server, string Vault)? ReadSecrets(string appDirectory)
+    {
+        var path = Path.Combine(appDirectory, ".secrets");
+        if (!File.Exists(path)) return null;
+        var section = false;
+        var folder = "";
+        var server = "";
+        var vault = "";
+        foreach (var raw in File.ReadLines(path))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (line.StartsWith('#'))
+            {
+                section = line.Equals("#Vault Client", StringComparison.Ordinal);
+                continue;
+            }
+            if (!section) continue;
+            var index = line.IndexOf(':');
+            if (index < 1) throw new InvalidDataException("Invalid Vault client entry. Expected ClientFolder:, Server:, or Vault:.");
+            var key = line[..index].Trim();
+            var value = line[(index + 1)..].Trim();
+            if (key == "ClientFolder") folder = value;
+            else if (key == "Server") server = value;
+            else if (key == "Vault") vault = value;
+            else throw new InvalidDataException("Invalid Vault client entry. Expected ClientFolder:, Server:, or Vault:.");
+        }
+        if (folder.Length == 0 && server.Length == 0 && vault.Length == 0) return null;
+        return (folder, server, vault);
+    }
+
     private static string Property(XElement category, string name) =>
         category.Elements().FirstOrDefault(element => element.Name.LocalName == "Property" && (string?)element.Attribute("Name") == name)
             ?.Attribute("Value")?.Value.Trim() ?? "";
