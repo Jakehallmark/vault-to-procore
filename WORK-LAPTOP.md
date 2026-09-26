@@ -1,6 +1,10 @@
 # Work laptop: live proof of concept
 
-## Current step: inventory the real project tree
+## Current step: run the tray app
+
+Copy the published `dist\win-x64` folder to this laptop and start `VaultTransfer.exe`. Sign in to Vault Professional first if you have not already; the app uses that saved server, database, and Windows account. Choose Scan now. The first Procore scan opens a browser. Later scans, including the scheduled ones, sign in to both without asking. Closing the window leaves it in the system tray. The app writes projects, file versions, and changes to `%LocalAppData%\VaultTransfer\catalog\catalog.json`. It does not upload files.
+
+## Previous step: inventory the real project tree
 
 The Windows-authenticated connection and root-folder query succeeded on the work laptop (user confirmed). The screenshot shows the source root as `$/Designs/Projects`.
 

@@ -4,11 +4,23 @@ A manually launched Windows app intended to scan Autodesk Vault Professional 202
 
 ## Current status
 
-**The separate Vault connection check succeeded on the work laptop. The C# app and Procore Drive connection are not yet a complete live proof of concept.** The previous local demonstration did not meet the required workflow. Its sample generator, sample button, preview command, and user-selectable local test mode have been removed. Old demonstration reviews are not accepted by the app.
+**Vault Transfer is a tray application.** Close the window and it keeps running from the notification area. On a schedule it scans Vault and Procore, then updates a local database of projects, staged files, and version changes. A changed Vault version is recorded, and a previously staged file goes back to observed until it is staged again. The database is `%LocalAppData%\VaultTransfer\catalog\catalog.json`.
 
-The work-laptop inventory completed with 159,675 records across 14,997 folders. The single-project download test then copied all three selected files, and the user confirmed the local files and preserved folder structure. This verifies the separate PowerShell workflow, not yet the C# app integration.
+Publish the work-laptop build from this folder:
+
+```powershell
+dotnet publish VaultTransfer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist\win-x64
+```
+
+Copy that `dist\win-x64` folder to the work laptop and start `VaultTransfer.exe`. Vault sign-in uses the server, database, and Windows account already saved by Vault Professional. The first Procore scan opens a browser; later scans sign in on their own. Live Vault and Procore calls only succeed on the work laptop.
+
+The work-laptop inventory completed with 159,675 records across 14,997 folders. The single-project download test copied the selected files and preserved the child folder structure. The tray app imports those scan results; it does not upload to Procore yet.
 
 ## Next milestone: Procore project inventory and matching
+
+Version 0.1.0 is now promoted and installed in PowerSecure's production company **12233** (confirmed by screenshot). `ConnectProcoreProduction.ps1` provides a separate read-only production sign-in and project-list query. See [production run instructions](PROCORE-PRODUCTION.md). The first live production run is verified: 932 unique project IDs, enumeration finished, and no error. Project numbers and active status are absent from all normalized records; detailed metadata must be retrieved before API-based matching.
+
+Developer approval and installation of **Vault Migration Tool** in developer sandbox company `4290241` are now confirmed. The new `ConnectProcoreSandbox.ps1` helper signs in using locally entered sandbox credentials and saves a read-only project inventory. See [Procore sandbox setup and run instructions](PROCORE-SANDBOX.md). Live sandbox sign-in and retrieval of the two default projects succeeded. The corrected live run completed on September 25, 2026: two projects, one response, EnumerationFinished=true, and no error. Project numbers and active status were not returned by this endpoint. Sandbox data does not replace the production CSV comparison. This helper is separate from the C# UI.
 
 `ImportProjectInventory.ps1` now imports the Portfolio CSV and the Vault JSON-lines inventory into a versioned local JSON snapshot under `reports`. It retains source records, source hashes, import time, exact-number matches, missing numbers, and duplicate-number exceptions. The supplied export contains 568 rows and yields 304 unambiguous number matches. All 568 Procore rows were verified to appear exactly once in the comparison. Project IDs and active status remain unknown because this CSV does not supply them; Stage is not treated as active status.
 

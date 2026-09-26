@@ -7,5 +7,13 @@
     <Nullable>enable</Nullable>
     <AssemblyName>VaultTransfer</AssemblyName>
     <RootNamespace>VaultTransfer</RootNamespace>
+    <DefaultItemExcludes>$(DefaultItemExcludes);test-results/**</DefaultItemExcludes>
   </PropertyGroup>
+  <ItemGroup>
+    <Content Include="VaultConnectionCheck.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="ScanVaultProjects.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="ConnectProcoreProduction.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="ProcoreProduction.Runtime.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="ProcoreSandbox.Core.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
 </Project>

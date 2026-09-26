@@ -60,6 +60,7 @@ internal static class SelfTests
             f.Add("001234 - Project/Plans/one.txt");
             var report = f.Scan(); var item = report.Items.Single();
             Check(report.Complete && item.Project == "001234" && item.Destination == @"Project A\Documents\Plans\one.txt");
+            Check(!item.Destination.Split('\\').Contains("001234 - Project", StringComparer.OrdinalIgnoreCase));
             Check(!Directory.Exists(f.Settings.StagingFolder) && !Directory.Exists(f.Settings.DestinationFolder));
         });
         Test("Only approved files pass through both copy steps", f =>
@@ -145,6 +146,13 @@ internal static class SelfTests
             var report = TransferEngine.Scan(f.Settings, cancel.Token);
             Check(!report.Complete && report.Errors.Count > 0);
             Reject(() => f.Approve(report)); Reject(() => f.Copy(report));
+        });
+        Test("Vault project folder is not created in Documents", f =>
+        {
+            f.Settings.ProjectFolders["001234"] = "001234 - Project";
+            f.Add("001234 - Project/Plans/one.txt");
+            var item = f.Scan().Items.Single();
+            Check(item.Status == "Blocked" && item.Reason.Contains("must not be created in Documents"));
         });
         Test("Destination traversal, reserved names, and overlapping roots are blocked", f =>
         {

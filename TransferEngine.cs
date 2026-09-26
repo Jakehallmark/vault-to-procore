@@ -135,7 +135,11 @@ public static class TransferEngine
                         item.Project = numbers[0];
                         if (!settings.ProjectFolders.TryGetValue(item.Project, out var mapped))
                             throw new InvalidDataException("Project number has no destination mapping.");
+                        var projectFolder = parts[matches[0].Index];
                         item.Destination = Relative(Path.Combine(mapped, Path.Combine(parts.Skip(matches[0].Index + 1).ToArray())));
+                        var documentsRoot = item.Destination.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
+                        if (documentsRoot.Equals(projectFolder, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidDataException("The Vault project folder is the Procore project and must not be created in Documents.");
                         if (item.Bytes == 0) throw new InvalidDataException("Empty files are excluded from transfer.");
                         item.Sha256 = Hash(entry, cancel);
                         foreach (var root in new[] { settings.StagingFolder, settings.DestinationFolder })

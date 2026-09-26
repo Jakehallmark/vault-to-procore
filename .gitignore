@@ -18,6 +18,8 @@ reports/
 *.user
 *.suo
 .vs/
+.secrets
+procore.refresh
 
 # Local development-tool settings
 .agents/
