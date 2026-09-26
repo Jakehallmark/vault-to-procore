@@ -92,6 +92,13 @@ internal static class CatalogTests
                 using var reopened = new Catalog(databaseFolder, null);
                 if (reopened.Projects().Single(project => project.Number == "101097").Approval != "Approved")
                     throw new Exception("Project history was not kept in the database.");
+                reopened.ApplyVaultProjects(["$/Designs/Projects/101000-101999/101097 - WM Wave 23 - Walmart Store 2151 1250kw"]);
+                var matched = reopened.Projects().Single(project => project.Number == "101097");
+                if (matched.Match != "Exact" || matched.VaultFolder.Contains("101097 - WM") == false)
+                    throw new Exception("The Vault project folder was not matched to Procore.");
+                var counts = reopened.MatchCounts();
+                if (counts.Matched != 1 || counts.ProcoreOnly != 1)
+                    throw new Exception("Match counts did not include the Vault and Procore projects.");
                 if (!File.Exists(Path.Combine(root, "catalog", Catalog.DatabaseFileName)))
                     throw new Exception("The database was not written beside the app.");
             }

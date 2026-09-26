@@ -46,12 +46,18 @@ internal sealed class ProcoreClient
                 skipped++;
                 continue;
             }
-            using var detail = JsonDocument.Parse(await Get(http, session, new Uri("https://api.procore.com/rest/v1.0/projects/" + id + "?company_id=" + CompanyId), cancel));
-            var project = ReadProject(CompanyId, id, detail.RootElement);
-            if (string.IsNullOrEmpty(project.UpdatedAt)) project = project with { UpdatedAt = view.UpdatedAt };
+            ProcoreProjectRecord project;
+            if (view.Comparable)
+                project = new ProcoreProjectRecord(CompanyId, id, view.Number, view.Name ?? "", view.Active, view.UpdatedAt);
+            else
+            {
+                using var detail = JsonDocument.Parse(await Get(http, session, new Uri("https://api.procore.com/rest/v1.0/projects/" + id + "?company_id=" + CompanyId), cancel));
+                project = ReadProject(CompanyId, id, detail.RootElement);
+                if (string.IsNullOrEmpty(project.UpdatedAt)) project = project with { UpdatedAt = view.UpdatedAt };
+            }
             save(project);
             read++;
-            progress.Report("Read " + read + " changed projects. " + skipped + " unchanged.");
+            if (read % 25 == 0) progress.Report("Saved " + read + " changed projects. " + skipped + " unchanged.");
         }
         progress.Report(skipped + " projects unchanged. " + read + " read.");
         SaveRefreshToken(session.RefreshToken);
@@ -79,6 +85,10 @@ internal sealed class ProcoreClient
             }
             catch (InvalidDataException) { refused = true; }
             if (!refused) throw new Exception("A numeric project number was accepted.");
+            using var listed = JsonDocument.Parse("{\"id\":2460697,\"project_number\":\"101097\",\"name\":\"FY23 WM 2151 Sunrise, FL\",\"active\":true,\"updated_at\":\"2026-09-01T00:00:00Z\"}");
+            var fromList = ReadListView(listed.RootElement);
+            if (!fromList.Comparable || fromList.Number != "101097" || fromList.UpdatedAt != "2026-09-01T00:00:00Z")
+                throw new Exception("A complete project list row still required a separate read.");
             Console.WriteLine("PASS Procore sign-in data stays inside the app");
             return 0;
         }

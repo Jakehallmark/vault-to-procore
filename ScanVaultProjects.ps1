@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)]$Connection,
     [string]$ScanRoot = '$/Designs/Projects',
     [string]$ReportFolder = (Join-Path $PSScriptRoot 'reports'),
-    [string]$ChangedSince = ''
+    [string]$ChangedSince = '',
+    [switch]$ProjectsOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -101,6 +102,26 @@ try {
     $Csv = New-Object IO.StreamWriter($CsvPath, $false, [Text.Encoding]::UTF8)
     $Json = New-Object IO.StreamWriter($JsonPath, $false, [Text.Encoding]::UTF8)
     $Csv.WriteLine('VaultPath,FileName,FileId,MasterId,Version,Decision')
+    if ($ProjectsOnly) {
+        $ScanMode = 'Projects'
+        $Complete = $false
+        foreach ($Range in $Documents.GetFoldersByParentId($StartFolder.Id, $false)) {
+            if ($null -eq $Range -or [string]$Range.Name -notmatch '^\d{6}-\d{6}$') { continue }
+            $Message = 'Scanning: ' + $Range.FullName
+            Write-Host $Message
+            [Console]::Out.WriteLine($Message)
+            foreach ($Project in $Documents.GetFoldersByParentId($Range.Id, $false)) {
+                if ($null -eq $Project -or [string]$Project.Name -notmatch '^\d{6}(?=\D|$)') { continue }
+                $Json.WriteLine(([pscustomobject]@{ VaultPath = [string]$Project.FullName } | ConvertTo-Json -Compress))
+                $FileCount++
+            }
+            $FolderCount++
+            $Json.Flush()
+        }
+        $Finished = $true
+        $Failure = $null
+    }
+    else {
     $IncrementalReady = $false
     $ChangedFiles = $null
     if ($ChangedSince) {
@@ -149,6 +170,7 @@ try {
     }
     $Finished = $true
     $Failure = $null
+    }
 }
 catch {
     $Failure = $_.Exception.Message
@@ -161,7 +183,7 @@ finally {
         ScanRoot = $ScanRoot; StartedUtc = $Started; EndedUtc = [DateTime]::UtcNow.ToString('o')
         EnumerationFinished = $Finished; Folders = $FolderCount; Files = $FileCount; Error = $Failure
         ScanMode = $ScanMode; Complete = [bool]$Complete
-        Scope = $(if ($ScanMode -eq 'Incremental') { 'Files checked in since the previous scan. Removals are checked on a full scan.' } else { 'Latest file records returned to this user; includes hidden records. No project matching or transfers.' })
+        Scope = $(if ($ScanMode -eq 'Projects') { 'Vault project folders only. File versions are not listed.' } elseif ($ScanMode -eq 'Incremental') { 'Files checked in since the previous scan. Removals are checked on a full scan.' } else { 'Latest file records returned to this user; includes hidden records. No project matching or transfers.' })
     }
     $Summary | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $RunFolder 'scan-summary.json') -Encoding UTF8
     Write-Host ('Reports: ' + $RunFolder)
@@ -169,4 +191,5 @@ finally {
 
 Move-Item -LiteralPath $CsvPath -Destination (Join-Path $RunFolder 'inventory.csv')
 Move-Item -LiteralPath $JsonPath -Destination (Join-Path $RunFolder 'inventory.jsonl')
-Write-Host ('SCAN COMPLETE: ' + $FileCount + ' file records in ' + $FolderCount + ' folders. No files transferred.')
+if ($ProjectsOnly) { Write-Host ('SCAN COMPLETE: ' + $FileCount + ' project folders in ' + $FolderCount + ' range folders.') }
+else { Write-Host ('SCAN COMPLETE: ' + $FileCount + ' file records in ' + $FolderCount + ' folders. No files transferred.') }

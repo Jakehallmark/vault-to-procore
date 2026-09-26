@@ -4,6 +4,7 @@ param(
     [string]$Vault = 'DI_Vault',
     [string]$PreferencesPath,
     [switch]$ScanProjects,
+    [switch]$ProjectsOnly,
     [string]$ChangedSince = ''
 )
 
@@ -127,12 +128,10 @@ try {
     Write-Host ('SUCCESS: Windows login accepted; read-only Vault root query returned folder ID ' + $RootFolder.Id + '.')
     Write-Host 'No document was downloaded, changed, checked out, or uploaded.'
     if ($ScanProjects) {
-        if ($ChangedSince) {
-            & (Join-Path $PSScriptRoot 'ScanVaultProjects.ps1') -Connection $Connection -ChangedSince $ChangedSince
-        }
-        else {
-            & (Join-Path $PSScriptRoot 'ScanVaultProjects.ps1') -Connection $Connection
-        }
+        $ScanArguments = @{ Connection = $Connection }
+        if ($ChangedSince) { $ScanArguments.ChangedSince = $ChangedSince }
+        if ($ProjectsOnly) { $ScanArguments.ProjectsOnly = $true }
+        & (Join-Path $PSScriptRoot 'ScanVaultProjects.ps1') @ScanArguments
     }
 }
 finally {

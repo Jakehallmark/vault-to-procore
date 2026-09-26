@@ -40,19 +40,22 @@ public sealed class MonitorForm : Form
         this.scriptFolder = scriptFolder;
         Text = "Vault Transfer";
         Font = new Font("Segoe UI", 10);
+        BackColor = Color.FromArgb(244, 246, 248);
         Size = new Size(1180, 760);
         MinimumSize = new Size(960, 620);
         StartPosition = FormStartPosition.CenterScreen;
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 46, Padding = new Padding(8, 8, 8, 0) };
-        bar.Controls.Add(Nav("Projects", ShowProjects));
-        bar.Controls.Add(Nav("To approve", ShowReview));
-        bar.Controls.Add(Nav("Changes", ShowChanges));
-        bar.Controls.Add(Nav("Settings", ShowSettings));
-        var scan = new Button { Text = "Scan now", AutoSize = true, Margin = new Padding(24, 0, 0, 0) };
+        var bar = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Color.White, Padding = new Padding(16, 12, 16, 12) };
+        bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(220, 224, 228) });
+        var navigationBar = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight, BackColor = Color.White };
+        navigationBar.Controls.Add(Nav("Projects", ShowProjects));
+        navigationBar.Controls.Add(Nav("To approve", ShowReview));
+        navigationBar.Controls.Add(Nav("Changes", ShowChanges));
+        navigationBar.Controls.Add(Nav("Settings", ShowSettings));
+        var scan = PrimaryButton("Scan");
+        scan.Dock = DockStyle.Right;
         scan.Click += async (_, _) => { SaveSettings(); await ScanAsync(manual: true); };
         bar.Controls.Add(scan);
-        bar.Controls.Add(ActionButton("Sign in to Procore", SignInProcoreAsync));
-        bar.Controls.Add(ActionButton("Scan Procore", ScanProcoreAsync));
+        bar.Controls.Add(navigationBar);
         BuildProjects();
         BuildReview();
         BuildChanges();
@@ -71,9 +74,8 @@ public sealed class MonitorForm : Form
         tray = new NotifyIcon { Icon = SystemIcons.Application, Visible = true, Text = "Vault Transfer" };
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => ShowWindow());
-        menu.Items.Add("Scan now", null, async (_, _) => await ScanAsync(manual: true));
-        menu.Items.Add("Sign in to Procore", null, async (_, _) => await SignInProcoreAsync());
-        menu.Items.Add("Scan Procore", null, async (_, _) => await ScanProcoreAsync());
+        menu.Items.Add("Scan", null, async (_, _) => await ScanAsync(manual: true));
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => { exiting = true; Close(); });
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => ShowWindow();
@@ -92,20 +94,45 @@ public sealed class MonitorForm : Form
         ShowProjects();
         Reload();
         UpdateProcoreSignIn();
+        status.BackColor = Color.White;
         status.Text = "Next scan at " + nextScan.ToLocalTime().ToString("h:mm tt") + ".";
+    }
+
+    private static Button PrimaryButton(string text)
+    {
+        var button = new Button
+        {
+            Text = text, Width = 96, Height = 30, FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false,
+            BackColor = Color.FromArgb(32, 54, 86), ForeColor = Color.White
+        };
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(47, 72, 110);
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(24, 40, 66);
+        return button;
     }
 
     private Button ActionButton(string text, Func<Task> action)
     {
-        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
+        var button = QuietButton(text);
         button.Click += async (_, _) => await action();
+        return button;
+    }
+
+    private static Button QuietButton(string text)
+    {
+        var button = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), Padding = new Padding(10, 4, 10, 4) };
+        button.FlatAppearance.BorderColor = Color.FromArgb(190, 198, 206);
         return button;
     }
 
     private Button Nav(string text, Action show)
     {
-        var button = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, Tag = text, Margin = new Padding(0, 0, 6, 0) };
-        button.FlatAppearance.BorderColor = Color.FromArgb(190, 198, 206);
+        var button = new Button
+        {
+            Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, Tag = text,
+            Margin = new Padding(0, 0, 4, 0), Padding = new Padding(12, 4, 12, 4)
+        };
+        button.FlatAppearance.BorderSize = 0;
         button.Click += (_, _) => show();
         navigation.Add(button);
         return button;
@@ -114,7 +141,10 @@ public sealed class MonitorForm : Form
     private void MarkNav(string name)
     {
         foreach (var button in navigation)
-            button.BackColor = button.Text == name ? Color.FromArgb(225, 232, 238) : SystemColors.Control;
+        {
+            button.BackColor = button.Text == name ? Color.FromArgb(232, 237, 242) : Color.White;
+            button.ForeColor = button.Text == name ? Color.FromArgb(32, 54, 86) : Color.FromArgb(55, 65, 74);
+        }
         projectsView.Visible = name == "Projects";
         reviewView.Visible = name == "To approve";
         changesView.Visible = name == "Changes";
@@ -123,12 +153,13 @@ public sealed class MonitorForm : Form
 
     private void BuildProjects()
     {
-        var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, Panel1MinSize = 220 };
+        projectsView.BackColor = Color.White;
+        var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, Panel1MinSize = 280, BackColor = Color.White };
         projectList.MultiSelect = false;
         projectList.Columns.Add("Number", "Number");
         projectList.Columns.Add("Name", "Procore project");
         projectList.Columns.Add("Match", "Match");
-        projectList.Columns.Add("Approval", "Check");
+        projectList.Columns.Add("Approval", "Approval");
         projectList.SelectionChanged += (_, _) =>
         {
             if (loading || projectList.SelectedRows.Count == 0) return;
@@ -136,23 +167,27 @@ public sealed class MonitorForm : Form
             ShowFiles();
         };
         findProject.TextChanged += (_, _) => ReloadProjects();
-        var left = new Panel { Dock = DockStyle.Fill };
+        var left = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
         left.Controls.Add(projectList);
         left.Controls.Add(findProject);
         split.Panel1.Controls.Add(left);
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 8, 0, 8) };
-        actions.Controls.Add(ProjectDecisionButton("Approve project", () => selectedProject is null ? [] : [selectedProject]));
-        actions.Controls.Add(ProjectDecisionButton("Deny project", () => selectedProject is null ? [] : [selectedProject], "Denied"));
-        actions.Controls.Add(ProjectDecisionButton("Mark project pending", () => selectedProject is null ? [] : [selectedProject], "Pending"));
-        actions.Controls.Add(DecisionButton("Approve", fileList, "Approved"));
-        actions.Controls.Add(DecisionButton("Deny", fileList, "Denied"));
-        actions.Controls.Add(DecisionButton("Mark pending", fileList, "Pending"));
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0, 4, 0, 8) };
+        actions.Controls.Add(ActionRow("Project", [
+            ProjectDecisionButton("Approve", () => selectedProject is null ? [] : [selectedProject]),
+            ProjectDecisionButton("Deny", () => selectedProject is null ? [] : [selectedProject], "Denied"),
+            ProjectDecisionButton("Mark pending", () => selectedProject is null ? [] : [selectedProject], "Pending")
+        ]));
+        actions.Controls.Add(ActionRow("Selected files", [
+            DecisionButton("Approve", fileList, "Approved"),
+            DecisionButton("Deny", fileList, "Denied"),
+            DecisionButton("Mark pending", fileList, "Pending")
+        ]));
         var filePath = fileList.Columns.Add("Path", "Folder and file");
         fileList.Columns.Add("Version", "Version");
         fileList.Columns.Add("Approval", "Approval");
         fileList.Columns.Add("Transfer", "Transfer");
         fileList.Columns[filePath].FillWeight = 280;
-        var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 8, 8, 8) };
+        var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 12, 16, 8), BackColor = Color.White };
         var heading = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         heading.Controls.Add(projectTitle);
         heading.Controls.Add(projectDetail);
@@ -165,13 +200,14 @@ public sealed class MonitorForm : Form
 
     private void BuildReview()
     {
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(12, 12, 12, 8) };
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(16, 16, 12, 8), BackColor = Color.White };
         actions.Controls.Add(ProjectDecisionButton("Approve", () => SelectedProjectNumbers(reviewList)));
         actions.Controls.Add(ProjectDecisionButton("Deny", () => SelectedProjectNumbers(reviewList), "Denied"));
         actions.Controls.Add(ProjectDecisionButton("Mark pending", () => SelectedProjectNumbers(reviewList), "Pending"));
         reviewList.Columns.Add("Project", "Project");
         reviewList.Columns.Add("Name", "Procore project");
         reviewList.Columns.Add("Match", "Match");
+        reviewView.BackColor = Color.White;
         reviewView.Padding = new Padding(0, 0, 8, 8);
         reviewView.Controls.Add(reviewList);
         reviewView.Controls.Add(actions);
@@ -185,12 +221,14 @@ public sealed class MonitorForm : Form
         changeList.Columns.Add("Version", "Version");
         var changePath = changeList.Columns.Add("Path", "Path");
         changeList.Columns[changePath].FillWeight = 280;
-        changesView.Padding = new Padding(8);
+        changesView.BackColor = Color.White;
+        changesView.Padding = new Padding(16, 12, 16, 8);
         changesView.Controls.Add(changeList);
     }
 
     private void BuildSettings()
     {
+        settingsView.BackColor = Color.White;
         var layout = new TableLayoutPanel { AutoSize = true, ColumnCount = 2 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -205,10 +243,7 @@ public sealed class MonitorForm : Form
         Add("Vault database", database);
         Add("", vaultNote);
         Add("", procoreState);
-        var procoreActions = new FlowLayoutPanel { AutoSize = true };
-        procoreActions.Controls.Add(ActionButton("Sign in to Procore", SignInProcoreAsync));
-        procoreActions.Controls.Add(ActionButton("Scan Procore", ScanProcoreAsync));
-        Add("", procoreActions);
+        Add("", ActionButton("Sign in to Procore", SignInProcoreAsync));
         Add("Scan every", interval);
         var hours = new Label { Text = "hours", AutoSize = true, Margin = new Padding(8, 8, 0, 0) };
         var hoursRow = new FlowLayoutPanel { AutoSize = true };
@@ -217,15 +252,23 @@ public sealed class MonitorForm : Form
         layout.Controls.Remove(interval);
         layout.Controls.Add(hoursRow, 1, layout.RowCount - 1);
         Add("", schedule);
-        var save = new Button { Text = "Save", AutoSize = true };
+        var save = QuietButton("Save");
         save.Click += (_, _) => SaveSettings();
         Add("", save);
         settingsView.Controls.Add(layout);
     }
 
+    private static FlowLayoutPanel ActionRow(string caption, Button[] buttons)
+    {
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 8) };
+        row.Controls.Add(new Label { Text = caption, AutoSize = true, Margin = new Padding(0, 6, 12, 0), MinimumSize = new Size(110, 0) });
+        foreach (var button in buttons) row.Controls.Add(button);
+        return row;
+    }
+
     private Button ProjectDecisionButton(string text, Func<string[]> numbers, string decision = "Approved")
     {
-        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
+        var button = QuietButton(text);
         button.Click += (_, _) => DecideProjects(numbers(), decision);
         return button;
     }
@@ -259,7 +302,7 @@ public sealed class MonitorForm : Form
 
     private Button DecisionButton(string text, DataGridView grid, string decision)
     {
-        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
+        var button = QuietButton(text);
         button.Click += (_, _) => Decide(grid, decision);
         return button;
     }
@@ -296,13 +339,26 @@ public sealed class MonitorForm : Form
     private void ShowChanges() { MarkNav("Changes"); }
     private void ShowSettings() { MarkNav("Settings"); }
 
-    private static DataGridView Grid() => new()
+    private static DataGridView Grid()
     {
-        Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
-        AutoGenerateColumns = false, RowHeadersVisible = false, BackgroundColor = Color.White,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        MultiSelect = true, BorderStyle = BorderStyle.None
-    };
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
+            AutoGenerateColumns = false, RowHeadersVisible = false, BackgroundColor = Color.White,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            MultiSelect = true, BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+            GridColor = Color.FromArgb(230, 234, 238), EnableHeadersVisualStyles = false, ColumnHeadersHeight = 34
+        };
+        grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(244, 246, 248);
+        grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(50, 58, 66);
+        grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(4, 0, 0, 0);
+        grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(220, 230, 240);
+        grid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(20, 24, 28);
+        grid.DefaultCellStyle.Padding = new Padding(4, 0, 0, 0);
+        grid.RowTemplate.Height = 30;
+        return grid;
+    }
 
     private void SaveSettings()
     {
@@ -342,14 +398,26 @@ public sealed class MonitorForm : Form
             running = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             try
             {
-                status.Text = "Scanning Vault.";
-                await ScanVault(running.Token);
+                string vaultMessage;
+                try { vaultMessage = await ScanVault(running.Token); }
+                catch (Exception error)
+                {
+                    status.Text = error.Message;
+                    return;
+                }
                 var savedSignIn = File.Exists(ProcoreTokenPath());
                 status.Text = savedSignIn ? "Signing in to Procore." : "Signing in to Procore. A browser window will open once.";
-                await ScanProcore(running.Token);
+                string procoreMessage;
+                try { procoreMessage = await ScanProcore(running.Token); }
+                catch (Exception error)
+                {
+                    status.Text = vaultMessage + " Procore scan failed. " + error.Message;
+                    return;
+                }
                 nextScan = DateTimeOffset.UtcNow.AddHours((double)interval.Value);
-                status.Text = "Scan finished. Next scan at " + nextScan.ToLocalTime().ToString("h:mm tt") + ".";
-                tray.ShowBalloonTip(2000, "Vault Transfer", "Scan finished.", ToolTipIcon.Info);
+                status.Text = vaultMessage + " " + procoreMessage + " " + ComparisonText()
+                    + " Next scan at " + nextScan.ToLocalTime().ToString("h:mm tt") + ".";
+                tray.ShowBalloonTip(2000, "Vault Transfer", ComparisonText(), ToolTipIcon.Info);
             }
             finally { running.Dispose(); running = null; }
         });
@@ -378,31 +446,13 @@ public sealed class MonitorForm : Form
         UpdateProcoreSignIn();
     }
 
-    private async Task ScanProcoreAsync()
-    {
-        var started = await scans.TryRun(async cancel =>
-        {
-            running = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-            try
-            {
-                var savedSignIn = File.Exists(ProcoreTokenPath());
-                status.Text = savedSignIn ? "Scanning Procore." : "Scanning Procore. A browser window will open for sign-in.";
-                await ScanProcore(running.Token);
-            }
-            finally { running.Dispose(); running = null; }
-        });
-        if (!started) status.Text = "A scan is already running.";
-        UpdateProcoreSignIn();
-        Reload();
-    }
-
     private static string ProcoreTokenPath() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VaultTransfer", "procore.refresh");
 
     private void UpdateProcoreSignIn() =>
         procoreState.Text = File.Exists(ProcoreTokenPath())
             ? "Procore sign-in is saved on this computer."
-            : "Procore sign-in is not saved. Use Sign in to Procore, then Scan Procore.";
+            : "Procore sign-in is not saved.";
 
     private void ApplyVaultLogin()
     {
@@ -422,7 +472,7 @@ public sealed class MonitorForm : Form
         }
     }
 
-    private async Task ScanVault(CancellationToken cancel)
+    private async Task<string> ScanVault(CancellationToken cancel)
     {
         ApplyVaultLogin();
         status.Text = "Signing in to Vault.";
@@ -431,57 +481,62 @@ public sealed class MonitorForm : Form
         try
         {
             var script = Path.Combine(scriptFolder, "VaultConnectionCheck.ps1");
-            var arguments = "-NoProfile -File \"" + script + "\" -ScanProjects";
+            if (!File.Exists(script)) throw new InvalidDataException("Vault scan script is not next to the app.");
+            var arguments = "-NoProfile -File \"" + script + "\" -ScanProjects -ProjectsOnly";
             if (!server.ReadOnly && server.Text.Trim().Length > 0 && database.Text.Trim().Length > 0)
                 arguments += " -Server \"" + server.Text.Trim() + "\" -Vault \"" + database.Text.Trim() + "\"";
-            var since = catalog.GetSetting("VaultChangedSince", "");
-            if (!catalog.VaultRescanIsDue(DateTimeOffset.UtcNow) && since.Length > 0)
-                arguments += " -ChangedSince \"" + since.Replace("\"", "", StringComparison.Ordinal) + "\"";
-            var output = await RunProcess(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", arguments, cancel);
+            var progress = new Progress<string>(text => { if (text.StartsWith("Scanning:", StringComparison.Ordinal)) status.Text = text; });
+            var output = await RunProcess(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", arguments, progress, cancel);
             var inventory = Newest(Path.Combine(scriptFolder, "reports"), "inventory.jsonl", started);
             var summaryPath = inventory is null ? "" : Path.Combine(Path.GetDirectoryName(inventory)!, "scan-summary.json");
             if (inventory is null || !Catalog.VaultScanFinished(summaryPath))
                 throw new InvalidDataException("Vault scan did not finish. " + Tail(output));
-            var removesMissing = Catalog.VaultScanRemovesMissing(summaryPath);
-            var count = catalog.ApplyVaultInventory(Catalog.ReadVaultJsonl(inventory), removesMissing);
-            var startedUtc = Catalog.VaultScanStarted(summaryPath);
-            if (startedUtc.Length > 0) catalog.SetSetting("VaultChangedSince", startedUtc);
-            if (removesMissing && startedUtc.Length > 0) catalog.SetSetting("VaultFullScanUtc", startedUtc);
             var mode = Catalog.VaultScanMode(summaryPath);
-            catalog.FinishScan(id, "Succeeded", count + (mode == "Incremental" ? " changes since the last scan." : " changes."));
+            var count = mode == "Projects"
+                ? catalog.ApplyVaultProjects(Catalog.ReadVaultProjects(inventory))
+                : catalog.ApplyVaultInventory(Catalog.ReadVaultJsonl(inventory), Catalog.VaultScanRemovesMissing(summaryPath));
+            catalog.FinishScan(id, "Succeeded", count + (mode == "Projects" ? " Vault projects." : " Vault changes."));
+            return count + " Vault projects.";
         }
         catch (Exception error)
         {
             catalog.FinishScan(id, "Failed", Tail(error.Message));
-            status.Text = error.Message;
+            throw;
         }
     }
 
-    private async Task ScanProcore(CancellationToken cancel)
+    private async Task<string> ScanProcore(CancellationToken cancel)
     {
         var id = catalog.StartScan("Procore");
         try
         {
             ShowProjects();
             var progress = new Progress<string>(text => status.Text = text);
-            var result = await new ProcoreClient().Scan(scriptFolder, catalog.ProcoreUnchanged, project =>
-            {
-                catalog.SaveProcoreProject(project);
-                Reload();
-            }, progress, cancel);
+            var result = await new ProcoreClient().Scan(scriptFolder, catalog.ProcoreUnchanged, catalog.SaveProcoreProject, progress, cancel);
             catalog.FinishScan(id, "Succeeded", result.Read + " changed, " + result.Unchanged + " unchanged.");
-            status.Text = result.Read == 0
-                ? "Procore scan finished. " + result.Unchanged + " projects were already current."
-                : "Procore scan finished. Read " + result.Read + " changed projects. " + result.Unchanged + " were already current.";
+            return result.Read == 0
+                ? result.Unchanged + " Procore projects were already current."
+                : "Read " + result.Read + " Procore projects. " + result.Unchanged + " were already current.";
         }
         catch (Exception error)
         {
             catalog.FinishScan(id, "Failed", Tail(error.Message));
-            status.Text = error.Message;
+            throw;
         }
     }
 
-    private static async Task<string> RunProcess(string fileName, string arguments, CancellationToken cancel)
+    private string ComparisonText()
+    {
+        if (!catalog.HasSucceededScan("Vault") || !catalog.HasSucceededScan("Procore"))
+            return catalog.HasSucceededScan("Vault")
+                ? "Procore has not been scanned, so projects are not matched."
+                : "Vault has not been scanned, so projects are not matched.";
+        var counts = catalog.MatchCounts();
+        return "Matched " + counts.Matched + ". Vault only " + counts.VaultOnly
+            + ". Procore only " + counts.ProcoreOnly + ". Needs review " + counts.NeedsReview + ".";
+    }
+
+    private static async Task<string> RunProcess(string fileName, string arguments, IProgress<string> progress, CancellationToken cancel)
     {
         var process = new Process
         {
@@ -491,12 +546,27 @@ public sealed class MonitorForm : Form
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true
             }
         };
+        var output = new System.Text.StringBuilder();
+        process.OutputDataReceived += (_, eventArgs) =>
+        {
+            if (eventArgs.Data is null) return;
+            lock (output) output.AppendLine(eventArgs.Data);
+            progress.Report(eventArgs.Data);
+        };
+        process.ErrorDataReceived += (_, eventArgs) =>
+        {
+            if (eventArgs.Data is null) return;
+            lock (output) output.AppendLine(eventArgs.Data);
+        };
         process.Start();
-        var read = Task.WhenAll(process.StandardOutput.ReadToEndAsync(cancel), process.StandardError.ReadToEndAsync(cancel));
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
         await process.WaitForExitAsync(cancel);
-        var output = await read;
-        if (process.ExitCode != 0) throw new InvalidDataException(Tail(output[0] + "\n" + output[1]));
-        return output[0] + "\n" + output[1];
+        process.WaitForExit();
+        string text;
+        lock (output) text = output.ToString();
+        if (process.ExitCode != 0) throw new InvalidDataException(Tail(text));
+        return text;
     }
 
     private static string? Newest(string folder, string name, DateTimeOffset started)
@@ -576,7 +646,8 @@ public sealed class MonitorForm : Form
             return;
         }
         projectTitle.Text = project.Number + (project.ProcoreName.Length > 0 ? "  " + project.ProcoreName : "");
-        projectDetail.Text = "Vault folder: " + project.VaultFolder
+        projectDetail.Text = MatchLabel(project.Match)
+            + "\nVault folder: " + (project.VaultFolder.Length == 0 ? "none" : project.VaultFolder)
             + "\nProcore project: " + (project.ProcoreId.Length == 0 ? "none" : project.ProcoreId)
             + (project.Active.Length == 0 ? "" : " (" + project.Active.ToLowerInvariant() + ")")
             + (project.Approval.Length == 0 ? "" : "\nCheck: " + project.Approval);

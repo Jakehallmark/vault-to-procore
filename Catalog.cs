@@ -11,6 +11,7 @@ public sealed record ProjectRow(string Number, string VaultFolder, string Procor
 public sealed record FileRow(string FileId, string ProjectNumber, string DocumentsPath, int Version, string Approval, string TransferStatus);
 public sealed record ChangeRow(string When, string Project, string Kind, string Version, string Path);
 public sealed record ScanRow(string Source, string Status, string Ended, string Summary);
+public sealed record MatchCounts(int Matched, int VaultOnly, int ProcoreOnly, int NeedsReview);
 
 public sealed class Catalog : IDisposable
 {
@@ -147,6 +148,24 @@ public sealed class Catalog : IDisposable
             var rows = Sql("UPDATE scans SET ended_utc = $ended, status = $status, summary = $summary WHERE id = $id",
                 ("$ended", Now()), ("$status", status), ("$summary", summary), ("$id", id));
             if (rows != 1) throw new InvalidDataException("That scan is not in the list.");
+        }
+    }
+
+    public int ApplyVaultProjects(IReadOnlyList<string> folderPaths)
+    {
+        lock (gate)
+        {
+            using var transaction = db.BeginTransaction();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var path in folderPaths)
+            {
+                if (!TrySplitProject(path, out var number, out var folder)) continue;
+                if (!seen.Add(number)) throw new InvalidDataException("Vault returned the same project number twice.");
+                EnsureProject(number, path, folder);
+                RefreshMatch(number);
+            }
+            transaction.Commit();
+            return seen.Count;
         }
     }
 
@@ -417,6 +436,41 @@ public sealed class Catalog : IDisposable
         }
     }
 
+    public MatchCounts MatchCounts()
+    {
+        lock (gate)
+        {
+            var matched = 0;
+            var vaultOnly = 0;
+            var procoreOnly = 0;
+            var needsReview = 0;
+            using var command = Command("SELECT match_status, COUNT(*) FROM projects GROUP BY match_status");
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var count = Convert.ToInt32(reader.GetInt64(1), CultureInfo.InvariantCulture);
+                switch (reader.GetString(0))
+                {
+                    case "Exact": matched = count; break;
+                    case "Vault": vaultOnly = count; break;
+                    case "Procore": procoreOnly = count; break;
+                    case "Needs review": needsReview = count; break;
+                }
+            }
+            return new MatchCounts(matched, vaultOnly, procoreOnly, needsReview);
+        }
+    }
+
+    public bool HasSucceededScan(string source)
+    {
+        lock (gate)
+        {
+            using var command = Command("SELECT 1 FROM scans WHERE source = $source AND status = 'Succeeded' LIMIT 1");
+            command.Parameters.AddWithValue("$source", source);
+            return command.ExecuteScalar() is not null;
+        }
+    }
+
     public IReadOnlyList<ScanRow> Scans(int limit)
     {
         lock (gate)
@@ -436,6 +490,18 @@ public sealed class Catalog : IDisposable
         var fullAt = GetSetting("VaultFullScanUtc", "");
         return !DateTimeOffset.TryParse(fullAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var fullStamp)
             || fullStamp <= now.AddDays(-7);
+    }
+
+    public static IReadOnlyList<string> ReadVaultProjects(string path)
+    {
+        var folders = new List<string>();
+        foreach (var line in File.ReadLines(path))
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            using var json = JsonDocument.Parse(line);
+            folders.Add(Required(json.RootElement, "VaultPath"));
+        }
+        return folders;
     }
 
     public static IReadOnlyList<VaultFileRecord> ReadVaultJsonl(string path)
@@ -607,6 +673,20 @@ public sealed class Catalog : IDisposable
             """,
             ("$file", fileId), ("$project", number), ("$when", Now()), ("$kind", kind),
             ("$previous", previous), ("$version", version), ("$path", path));
+
+    private static readonly Regex ProjectFolder = new(
+        @"^\$/Designs/Projects/\d{6}-\d{6}/(\d{6})(?=\D|$)([^/]*)$",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static bool TrySplitProject(string vaultPath, out string number, out string folder)
+    {
+        number = folder = "";
+        var match = ProjectFolder.Match(vaultPath.TrimEnd('/'));
+        if (!match.Success) return false;
+        number = match.Groups[1].Value;
+        folder = number + match.Groups[2].Value;
+        return true;
+    }
 
     private static bool TrySplit(string vaultPath, out string number, out string folder, out string documents)
     {
