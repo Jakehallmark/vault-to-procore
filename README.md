@@ -9,7 +9,7 @@ A manually launched Windows app intended to scan Autodesk Vault Professional 202
 Publish the work-laptop build from this folder:
 
 ```powershell
-dotnet publish VaultTransfer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist\win-x64
+powershell.exe -NoProfile -File .\Build.ps1
 ```
 
 Copy that `dist\win-x64` folder to the work laptop and start `VaultTransfer.exe`. Vault sign-in uses the server, database, and Windows account already saved by Vault Professional. The first Procore scan opens a browser; later scans sign in on their own. Live Vault and Procore calls only succeed on the work laptop.
