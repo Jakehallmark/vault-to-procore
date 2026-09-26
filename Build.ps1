@@ -10,6 +10,11 @@ if ($Running) {
     throw 'Vault Transfer is running from dist\win-x64. Exit it from the tray, then build again.'
 }
 & dotnet @(
+    'restore', (Join-Path $PSScriptRoot 'VaultTransfer.csproj'),
+    '--source', 'https://api.nuget.org/v3/index.json'
+)
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& dotnet @(
     'publish', (Join-Path $PSScriptRoot 'VaultTransfer.csproj'),
     '-c', 'Release',
     '-r', 'win-x64',

@@ -15,7 +15,7 @@ internal static class CatalogTests
             var root = Directory.CreateTempSubdirectory("VaultCatalog-").FullName;
             try
             {
-                using var catalog = new Catalog(Path.Combine(root, "catalog"));
+                using var catalog = new Catalog(Path.Combine(root, "catalog"), null);
                 var first = "$/Designs/Projects/101000-101999/101097 - WM Wave 23 - Walmart Store 2151 1250kw/Settings Files/relay.zap15";
                 var added = catalog.ApplyVaultInventory([new VaultFileRecord(first, "42", 3)], true);
                 if (added != 1) throw new Exception("Expected one added file.");
@@ -60,6 +60,70 @@ internal static class CatalogTests
                 var overlapped = coordinator.TryRun(_ => Task.CompletedTask).Result;
                 firstScan.Wait();
                 if (overlapped || !firstScan.Result) throw new Exception("Two scans ran at the same time.");
+            }
+            finally { Directory.Delete(root, true); }
+        });
+        Test("Saved Procore projects stay in the list and can be approved", () =>
+        {
+            var root = Directory.CreateTempSubdirectory("VaultProcore-").FullName;
+            try
+            {
+                var databaseFolder = Path.Combine(root, "catalog");
+                {
+                using var catalog = new Catalog(databaseFolder, null);
+                catalog.SaveProcoreProject(new ProcoreProjectRecord("12233", "2460697", "101097", "FY23 WM 2151 Sunrise, FL", true));
+                if (!catalog.SeenProcoreProjectIds().Contains("2460697")) throw new Exception("The saved Procore project was not remembered.");
+                var saved = catalog.Projects().Single();
+                if (saved.Number != "101097" || saved.Approval != "Pending" || saved.Match != "Procore")
+                    throw new Exception("The Procore project was not added to the list.");
+                catalog.SetProjectApproval(["101097"], "Approved");
+                catalog.SaveProcoreProject(new ProcoreProjectRecord("12233", "2460697", "101097", "FY23 WM 2151 Sunrise, FL", true));
+                if (catalog.Projects().Single().Approval != "Approved") throw new Exception("A later scan cleared the project approval.");
+                catalog.SaveProcoreProject(new ProcoreProjectRecord("12233", "3552178", null, "Norbord", true));
+                if (catalog.Projects().Single(project => project.Number == "3552178").ProcoreName != "Norbord")
+                    throw new Exception("A project without a number was dropped.");
+                var stamp = "2026-09-01T00:00:00Z";
+                catalog.SaveProcoreProject(new ProcoreProjectRecord("12233", "2460697", "101097", "FY23 WM 2151 Sunrise, FL", true, stamp));
+                if (!catalog.ProcoreUnchanged("2460697", stamp, true, "101097", "FY23 WM 2151 Sunrise, FL", true))
+                    throw new Exception("An unchanged Procore project was read again.");
+                if (catalog.ProcoreUnchanged("2460697", "2026-09-02T00:00:00Z", true, "101097", "FY23 WM 2151 Sunrise, FL", true))
+                    throw new Exception("A changed Procore project was skipped.");
+                }
+                using var reopened = new Catalog(databaseFolder, null);
+                if (reopened.Projects().Single(project => project.Number == "101097").Approval != "Approved")
+                    throw new Exception("Project history was not kept in the database.");
+                if (!File.Exists(Path.Combine(root, "catalog", Catalog.DatabaseFileName)))
+                    throw new Exception("The database was not written beside the app.");
+            }
+            finally { Directory.Delete(root, true); }
+        });
+        Test("An older project list is kept and an incremental Vault scan does not drop files", () =>
+        {
+            var root = Directory.CreateTempSubdirectory("VaultLegacy-").FullName;
+            try
+            {
+                var legacy = Path.Combine(root, "catalog.json");
+                File.WriteAllText(legacy, """
+                    {"Projects":[{"Number":"101097","VaultPath":"$/Designs/Projects/101000-101999/101097 - Example","VaultFolderName":"101097 - Example","ProcoreCompanyId":"12233","ProcoreProjectId":"2460697","ProcoreName":"Sunrise","ProcoreActive":true,"MatchStatus":"Exact","Approval":"Approved","FirstSeenUtc":"2026-09-01T00:00:00.0000000+00:00","LastSeenUtc":"2026-09-01T00:00:00.0000000+00:00"}],"Files":[{"FileId":"42","ProjectNumber":"101097","VaultPath":"$/Designs/Projects/101000-101999/101097 - Example/Settings Files/relay.zap15","DocumentsPath":"Settings Files/relay.zap15","Version":3,"Sha256":"","TransferStatus":"Observed","Approval":"Pending","Missing":0,"FirstSeenUtc":"2026-09-01T00:00:00.0000000+00:00","LastSeenUtc":"2026-09-01T00:00:00.0000000+00:00"}],"Changes":[],"Scans":[],"SeenProcoreIds":["2460697"],"Settings":{}}
+                    """);
+                var folder = Path.Combine(root, "app");
+                using (var catalog = new Catalog(folder, legacy))
+                {
+                    var project = catalog.Projects().Single();
+                    if (project.Number != "101097" || project.Approval != "Approved" || project.Files != 1)
+                        throw new Exception("The previous project list was not kept.");
+                    if (!catalog.ProcoreUnchanged("2460697", null, true, "101097", "Sunrise", true))
+                        throw new Exception("A saved Procore project with the same list fields was read again.");
+                    if (!catalog.VaultRescanIsDue(DateTimeOffset.Parse("2026-09-26T00:00:00Z")))
+                        throw new Exception("The first Vault scan was treated as an update.");
+                    var path = "$/Designs/Projects/101000-101999/101097 - Example/Settings Files/relay.zap15";
+                    var removed = catalog.ApplyVaultInventory([new VaultFileRecord(path, "42", 3)], false);
+                    if (removed != 0 || catalog.Files("101097", null).Count != 1)
+                        throw new Exception("An update scan removed a file that was not listed.");
+                    catalog.SetSetting("VaultFullScanUtc", "2026-09-26T00:00:00.0000000+00:00");
+                    if (catalog.VaultRescanIsDue(DateTimeOffset.Parse("2026-09-26T12:00:00Z")))
+                        throw new Exception("A fresh full scan was due again the same day.");
+                }
             }
             finally { Directory.Delete(root, true); }
         });

@@ -11,12 +11,11 @@ internal static class Program
             return failures == 0 ? 0 : 1;
         }
         ApplicationConfiguration.Initialize();
-        var dataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VaultTransfer");
+        var appFolder = AppContext.BaseDirectory;
         try
         {
-            Directory.CreateDirectory(dataFolder);
-            using var instance = new FileStream(Path.Combine(dataFolder, "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            using var catalog = new Catalog(Path.Combine(dataFolder, "catalog"));
+            using var instance = new FileStream(Path.Combine(appFolder, "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            using var catalog = new Catalog(appFolder);
             using var form = new MonitorForm(catalog, AppContext.BaseDirectory);
             Application.Run(form);
             return 0;

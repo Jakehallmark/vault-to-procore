@@ -7,6 +7,8 @@ using System.Text.Json;
 
 namespace VaultTransfer;
 
+internal readonly record struct ProcoreScanResult(int Read, int Unchanged);
+
 internal sealed class ProcoreClient
 {
     private const string CompanyId = "12233";
@@ -22,27 +24,38 @@ internal sealed class ProcoreClient
         SaveRefreshToken(session.RefreshToken);
     }
 
-    public async Task<IReadOnlyList<ProcoreProjectRecord>> Scan(string appDirectory, IProgress<string> progress, CancellationToken cancel)
+    public async Task<ProcoreScanResult> Scan(string appDirectory, Func<string, string?, bool, string?, string?, bool?, bool> unchanged, Action<ProcoreProjectRecord> save, IProgress<string> progress, CancellationToken cancel)
     {
         var (clientId, secret) = ReadCredentialsFile(Path.Combine(appDirectory, ".secrets"));
         using var http = NewHttp();
         var session = await OpenSession(http, clientId, secret, progress, cancel);
-        progress.Report("Reading Procore projects.");
+        progress.Report("Reading the Procore project list.");
         using var list = JsonDocument.Parse(await Get(http, session, new Uri("https://api.procore.com/rest/v1.0/companies/" + CompanyId + "/projects"), cancel));
         if (list.RootElement.ValueKind != JsonValueKind.Array) throw new InvalidDataException("Procore did not return a project list.");
-        var ids = list.RootElement.EnumerateArray().Select(item => RequiredId(item)).ToArray();
-        if (ids.Distinct(StringComparer.Ordinal).Count() != ids.Length) throw new InvalidDataException("Procore returned the same project twice.");
-        var projects = new List<ProcoreProjectRecord>(ids.Length);
-        for (var index = 0; index < ids.Length; index++)
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var read = 0;
+        var skipped = 0;
+        foreach (var item in list.RootElement.EnumerateArray())
         {
             cancel.ThrowIfCancellationRequested();
-            progress.Report("Procore projects: " + (index + 1) + " / " + ids.Length);
-            var id = ids[index];
+            var id = RequiredId(item);
+            if (!seen.Add(id)) throw new InvalidDataException("Procore returned the same project twice.");
+            var view = ReadListView(item);
+            if (unchanged(id, view.UpdatedAt, view.Comparable, view.Number, view.Name, view.Active))
+            {
+                skipped++;
+                continue;
+            }
             using var detail = JsonDocument.Parse(await Get(http, session, new Uri("https://api.procore.com/rest/v1.0/projects/" + id + "?company_id=" + CompanyId), cancel));
-            projects.Add(ReadProject(CompanyId, id, detail.RootElement));
+            var project = ReadProject(CompanyId, id, detail.RootElement);
+            if (string.IsNullOrEmpty(project.UpdatedAt)) project = project with { UpdatedAt = view.UpdatedAt };
+            save(project);
+            read++;
+            progress.Report("Read " + read + " changed projects. " + skipped + " unchanged.");
         }
+        progress.Report(skipped + " projects unchanged. " + read + " read.");
         SaveRefreshToken(session.RefreshToken);
-        return projects;
+        return new ProcoreScanResult(read, skipped);
     }
 
     public static int SelfTest()
@@ -339,7 +352,28 @@ internal sealed class ProcoreClient
             active = activeValue.GetBoolean();
         }
         var name = detail.TryGetProperty("name", out var nameValue) ? nameValue.ToString() : "";
-        return new ProcoreProjectRecord(companyId, projectId, number, name, active);
+        string? updated = null;
+        if (detail.TryGetProperty("updated_at", out var updatedValue) && updatedValue.ValueKind == JsonValueKind.String)
+            updated = updatedValue.GetString();
+        return new ProcoreProjectRecord(companyId, projectId, number, name, active, updated);
+    }
+
+    private readonly record struct ListView(string? UpdatedAt, bool Comparable, string? Number, string? Name, bool? Active);
+
+    private static ListView ReadListView(JsonElement item)
+    {
+        string? updated = null;
+        if (item.TryGetProperty("updated_at", out var updatedValue) && updatedValue.ValueKind == JsonValueKind.String)
+            updated = updatedValue.GetString();
+        if (!item.TryGetProperty("name", out var nameValue) || nameValue.ValueKind != JsonValueKind.String
+            || !item.TryGetProperty("project_number", out var numberValue)
+            || numberValue.ValueKind is not JsonValueKind.String and not JsonValueKind.Null
+            || !item.TryGetProperty("active", out var activeValue)
+            || activeValue.ValueKind is not JsonValueKind.True and not JsonValueKind.False and not JsonValueKind.Null)
+            return new ListView(updated, false, null, null, null);
+        bool? active = activeValue.ValueKind == JsonValueKind.Null ? null : activeValue.GetBoolean();
+        var number = numberValue.ValueKind == JsonValueKind.String ? numberValue.GetString() : null;
+        return new ListView(updated, true, number, nameValue.GetString() ?? "", active);
     }
 
     private static string RequiredId(JsonElement project)

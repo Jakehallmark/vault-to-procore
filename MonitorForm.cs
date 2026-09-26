@@ -128,7 +128,7 @@ public sealed class MonitorForm : Form
         projectList.Columns.Add("Number", "Number");
         projectList.Columns.Add("Name", "Procore project");
         projectList.Columns.Add("Match", "Match");
-        projectList.Columns.Add("Pending", "To approve");
+        projectList.Columns.Add("Approval", "Check");
         projectList.SelectionChanged += (_, _) =>
         {
             if (loading || projectList.SelectedRows.Count == 0) return;
@@ -141,6 +141,9 @@ public sealed class MonitorForm : Form
         left.Controls.Add(findProject);
         split.Panel1.Controls.Add(left);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 8, 0, 8) };
+        actions.Controls.Add(ProjectDecisionButton("Approve project", () => selectedProject is null ? [] : [selectedProject]));
+        actions.Controls.Add(ProjectDecisionButton("Deny project", () => selectedProject is null ? [] : [selectedProject], "Denied"));
+        actions.Controls.Add(ProjectDecisionButton("Mark project pending", () => selectedProject is null ? [] : [selectedProject], "Pending"));
         actions.Controls.Add(DecisionButton("Approve", fileList, "Approved"));
         actions.Controls.Add(DecisionButton("Deny", fileList, "Denied"));
         actions.Controls.Add(DecisionButton("Mark pending", fileList, "Pending"));
@@ -163,13 +166,12 @@ public sealed class MonitorForm : Form
     private void BuildReview()
     {
         var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(12, 12, 12, 8) };
-        actions.Controls.Add(DecisionButton("Approve", reviewList, "Approved"));
-        actions.Controls.Add(DecisionButton("Deny", reviewList, "Denied"));
+        actions.Controls.Add(ProjectDecisionButton("Approve", () => SelectedProjectNumbers(reviewList)));
+        actions.Controls.Add(ProjectDecisionButton("Deny", () => SelectedProjectNumbers(reviewList), "Denied"));
+        actions.Controls.Add(ProjectDecisionButton("Mark pending", () => SelectedProjectNumbers(reviewList), "Pending"));
         reviewList.Columns.Add("Project", "Project");
         reviewList.Columns.Add("Name", "Procore project");
-        var reviewPath = reviewList.Columns.Add("Path", "Folder and file");
-        reviewList.Columns.Add("Version", "Version");
-        reviewList.Columns[reviewPath].FillWeight = 280;
+        reviewList.Columns.Add("Match", "Match");
         reviewView.Padding = new Padding(0, 0, 8, 8);
         reviewView.Controls.Add(reviewList);
         reviewView.Controls.Add(actions);
@@ -219,6 +221,40 @@ public sealed class MonitorForm : Form
         save.Click += (_, _) => SaveSettings();
         Add("", save);
         settingsView.Controls.Add(layout);
+    }
+
+    private Button ProjectDecisionButton(string text, Func<string[]> numbers, string decision = "Approved")
+    {
+        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
+        button.Click += (_, _) => DecideProjects(numbers(), decision);
+        return button;
+    }
+
+    private static string[] SelectedProjectNumbers(DataGridView grid) =>
+        grid.SelectedRows.Cast<DataGridViewRow>().Select(row => (string)row.Tag!).ToArray();
+
+    private void DecideProjects(IReadOnlyList<string> numbers, string decision)
+    {
+        if (numbers.Count == 0)
+        {
+            status.Text = "Select one or more projects.";
+            return;
+        }
+        try
+        {
+            catalog.SetProjectApproval(numbers, decision);
+            status.Text = decision switch
+            {
+                "Approved" => numbers.Count + " " + Plural(numbers.Count, "project") + " approved. Nothing has been uploaded.",
+                "Denied" => numbers.Count + " " + Plural(numbers.Count, "project") + " denied.",
+                _ => numbers.Count + " " + Plural(numbers.Count, "project") + " marked pending."
+            };
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(this, error.Message, "Vault Transfer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        Reload();
     }
 
     private Button DecisionButton(string text, DataGridView grid, string decision)
@@ -398,12 +434,21 @@ public sealed class MonitorForm : Form
             var arguments = "-NoProfile -File \"" + script + "\" -ScanProjects";
             if (!server.ReadOnly && server.Text.Trim().Length > 0 && database.Text.Trim().Length > 0)
                 arguments += " -Server \"" + server.Text.Trim() + "\" -Vault \"" + database.Text.Trim() + "\"";
+            var since = catalog.GetSetting("VaultChangedSince", "");
+            if (!catalog.VaultRescanIsDue(DateTimeOffset.UtcNow) && since.Length > 0)
+                arguments += " -ChangedSince \"" + since.Replace("\"", "", StringComparison.Ordinal) + "\"";
             var output = await RunProcess(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", arguments, cancel);
             var inventory = Newest(Path.Combine(scriptFolder, "reports"), "inventory.jsonl", started);
-            if (inventory is null || !Catalog.VaultScanFinished(Path.Combine(Path.GetDirectoryName(inventory)!, "scan-summary.json")))
+            var summaryPath = inventory is null ? "" : Path.Combine(Path.GetDirectoryName(inventory)!, "scan-summary.json");
+            if (inventory is null || !Catalog.VaultScanFinished(summaryPath))
                 throw new InvalidDataException("Vault scan did not finish. " + Tail(output));
-            var count = catalog.ApplyVaultInventory(Catalog.ReadVaultJsonl(inventory), true);
-            catalog.FinishScan(id, "Succeeded", count + " changes.");
+            var removesMissing = Catalog.VaultScanRemovesMissing(summaryPath);
+            var count = catalog.ApplyVaultInventory(Catalog.ReadVaultJsonl(inventory), removesMissing);
+            var startedUtc = Catalog.VaultScanStarted(summaryPath);
+            if (startedUtc.Length > 0) catalog.SetSetting("VaultChangedSince", startedUtc);
+            if (removesMissing && startedUtc.Length > 0) catalog.SetSetting("VaultFullScanUtc", startedUtc);
+            var mode = Catalog.VaultScanMode(summaryPath);
+            catalog.FinishScan(id, "Succeeded", count + (mode == "Incremental" ? " changes since the last scan." : " changes."));
         }
         catch (Exception error)
         {
@@ -417,11 +462,17 @@ public sealed class MonitorForm : Form
         var id = catalog.StartScan("Procore");
         try
         {
+            ShowProjects();
             var progress = new Progress<string>(text => status.Text = text);
-            var projects = await new ProcoreClient().Scan(scriptFolder, progress, cancel);
-            var count = catalog.ApplyProcoreProjects(projects);
-            catalog.FinishScan(id, "Succeeded", count + " changes.");
-            status.Text = "Procore scan finished. " + count + " " + Plural(count, "change") + ".";
+            var result = await new ProcoreClient().Scan(scriptFolder, catalog.ProcoreUnchanged, project =>
+            {
+                catalog.SaveProcoreProject(project);
+                Reload();
+            }, progress, cancel);
+            catalog.FinishScan(id, "Succeeded", result.Read + " changed, " + result.Unchanged + " unchanged.");
+            status.Text = result.Read == 0
+                ? "Procore scan finished. " + result.Unchanged + " projects were already current."
+                : "Procore scan finished. Read " + result.Read + " changed projects. " + result.Unchanged + " were already current.";
         }
         catch (Exception error)
         {
@@ -506,7 +557,7 @@ public sealed class MonitorForm : Form
             if (query.Length > 0 && project.Number.Contains(query, StringComparison.OrdinalIgnoreCase) == false
                 && project.ProcoreName.Contains(query, StringComparison.OrdinalIgnoreCase) == false
                 && project.VaultFolder.Contains(query, StringComparison.OrdinalIgnoreCase) == false) continue;
-            var index = projectList.Rows.Add(project.Number, project.ProcoreName, MatchLabel(project.Match), project.Pending);
+            var index = projectList.Rows.Add(project.Number, project.ProcoreName, MatchLabel(project.Match), project.Approval.Length == 0 ? "" : project.Approval);
             projectList.Rows[index].Tag = project.Number;
             if (project.Number == selectedProject) projectList.Rows[index].Selected = true;
         }
@@ -527,7 +578,8 @@ public sealed class MonitorForm : Form
         projectTitle.Text = project.Number + (project.ProcoreName.Length > 0 ? "  " + project.ProcoreName : "");
         projectDetail.Text = "Vault folder: " + project.VaultFolder
             + "\nProcore project: " + (project.ProcoreId.Length == 0 ? "none" : project.ProcoreId)
-            + (project.Active.Length == 0 ? "" : " (" + project.Active.ToLowerInvariant() + ")");
+            + (project.Active.Length == 0 ? "" : " (" + project.Active.ToLowerInvariant() + ")")
+            + (project.Approval.Length == 0 ? "" : "\nCheck: " + project.Approval);
         foreach (var file in catalog.Files(project.Number, null))
         {
             var index = fileList.Rows.Add(file.DocumentsPath, file.Version, file.Approval, TransferLabel(file.TransferStatus));
@@ -538,12 +590,10 @@ public sealed class MonitorForm : Form
     private void ReloadReview()
     {
         reviewList.Rows.Clear();
-        var projects = catalog.Projects().ToDictionary(project => project.Number);
-        foreach (var file in catalog.Files(null, "Pending"))
+        foreach (var project in catalog.Projects().Where(project => project.Approval == "Pending"))
         {
-            if (!projects.TryGetValue(file.ProjectNumber, out var project) || project.Match != "Exact") continue;
-            var index = reviewList.Rows.Add(file.ProjectNumber, project.ProcoreName, file.DocumentsPath, file.Version);
-            reviewList.Rows[index].Tag = file.FileId;
+            var index = reviewList.Rows.Add(project.Number, project.ProcoreName, MatchLabel(project.Match));
+            reviewList.Rows[index].Tag = project.Number;
         }
     }
 

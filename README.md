@@ -4,7 +4,7 @@ A manually launched Windows app intended to scan Autodesk Vault Professional 202
 
 ## Current status
 
-**Vault Transfer is a tray application.** Close the window and it keeps running from the notification area. On a schedule it scans Vault and Procore, then updates a local database of projects, staged files, and version changes. A changed Vault version is recorded, and a previously staged file goes back to observed until it is staged again. The database is `%LocalAppData%\VaultTransfer\catalog\catalog.json`.
+**Vault Transfer is a tray application.** Close the window and it keeps running from the notification area. On a schedule it scans Vault and Procore, then updates a local database of projects, staged files, and version changes. A changed Vault version is recorded, and a previously staged file goes back to observed until it is staged again. The database is `vault-transfer.db` in the same folder as `VaultTransfer.exe`. Replacing the program leaves that file in place.
 
 Publish the work-laptop build from this folder:
 
