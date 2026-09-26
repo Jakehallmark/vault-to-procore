@@ -33,4 +33,11 @@ $Missing = @($Required | Where-Object { -not (Test-Path -LiteralPath (Join-Path 
 if ($Missing.Count -gt 0) {
     throw ('Build finished without: ' + ($Missing -join ', '))
 }
-Write-Host ('Built ' + (Join-Path $Output 'VaultTransfer.exe'))
+$Release = Join-Path $PSScriptRoot 'release'
+[void][IO.Directory]::CreateDirectory($Release)
+$Archive = Join-Path $Release 'VaultTransfer-win-x64.tar.xz'
+if (Test-Path -LiteralPath $Archive) { Remove-Item -LiteralPath $Archive -Force }
+& tar -cJf $Archive -C $Output @Required
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Write-Host ('Built ' + $Exe)
+Write-Host ('Compressed ' + $Archive)

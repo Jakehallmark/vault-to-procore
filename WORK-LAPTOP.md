@@ -2,7 +2,15 @@
 
 ## Current step: run the tray app
 
-Copy the published `dist\win-x64` folder to this laptop and start `VaultTransfer.exe`. Sign in to Vault Professional first if you have not already; the app uses that saved server, database, and Windows account. Choose Scan now. The first Procore scan opens a browser. Later scans, including the scheduled ones, sign in to both without asking. Closing the window leaves it in the system tray. The app writes projects, file versions, and changes to `%LocalAppData%\VaultTransfer\catalog\catalog.json`. It does not upload files.
+Pull this repo and extract the committed build. Do not run `Build.ps1` on this laptop.
+
+```powershell
+New-Item -ItemType Directory -Force dist\win-x64
+tar -xf release\VaultTransfer-win-x64.tar.xz -C dist\win-x64
+dist\win-x64\VaultTransfer.exe
+```
+
+Sign in to Vault Professional first if you have not already; the app uses that saved server, database, and Windows account. Choose Scan now. The first Procore scan opens a browser. Later scans, including the scheduled ones, sign in to both without asking. Closing the window leaves it in the system tray. The app writes projects, file versions, and changes to `%LocalAppData%\VaultTransfer\catalog\catalog.json`. It does not upload files.
 
 ## Previous step: inventory the real project tree
 

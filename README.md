@@ -12,7 +12,14 @@ Publish the work-laptop build from this folder:
 powershell.exe -NoProfile -File .\Build.ps1
 ```
 
-Copy that `dist\win-x64` folder to the work laptop and start `VaultTransfer.exe`. Vault sign-in uses the server, database, and Windows account already saved by Vault Professional. The first Procore scan opens a browser; later scans sign in on their own. Live Vault and Procore calls only succeed on the work laptop.
+That writes `dist\win-x64` and `release\VaultTransfer-win-x64.tar.xz`. The archive is the copy that belongs in git. On the work laptop, extract it instead of building:
+
+```powershell
+New-Item -ItemType Directory -Force dist\win-x64
+tar -xf release\VaultTransfer-win-x64.tar.xz -C dist\win-x64
+```
+
+Start `dist\win-x64\VaultTransfer.exe`. Vault sign-in uses the server, database, and Windows account already saved by Vault Professional. The first Procore scan opens a browser; later scans sign in on their own. Live Vault and Procore calls only succeed on the work laptop.
 
 The work-laptop inventory completed with 159,675 records across 14,997 folders. The single-project download test copied the selected files and preserved the child folder structure. The tray app imports those scan results; it does not upload to Procore yet.
 
