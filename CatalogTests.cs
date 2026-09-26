@@ -171,6 +171,37 @@ internal static class CatalogTests
             }
             finally { Directory.Delete(root, true); }
         });
+        Test("Repeated Vault project numbers are logged and a week of log lines is kept", () =>
+        {
+            var root = Directory.CreateTempSubdirectory("VaultLog-").FullName;
+            try
+            {
+                var folder = Path.Combine(root, "app");
+                using var catalog = new Catalog(folder, null);
+                var first = "$/Designs/Projects/101000-101999/101097 - A";
+                var second = "$/Designs/Projects/102000-102999/101097 - B";
+                var other = "$/Designs/Projects/101000-101999/101098 - C";
+                var applied = catalog.ApplyVaultProjects([first, second, other, first]);
+                if (applied.Projects != 2) throw new Exception("A repeated project number stopped the Vault list.");
+                if (catalog.Projects().Single(project => project.Number == "101097").VaultFolder != "101097 - A")
+                    throw new Exception("The first Vault folder was not kept.");
+                if (applied.Notes.Count != 2 || applied.Notes.Any(note => note.Contains("101097") == false))
+                    throw new Exception("The repeated Vault folders were not reported.");
+                var log = new AppLog(catalog, folder);
+                log.Warning("Vault", applied.Notes[0]);
+                if (!File.ReadAllText(log.FilePath).Contains("Also found"))
+                    throw new Exception("The log file did not record the repeated folder.");
+                File.AppendAllText(log.FilePath, "2020-01-01 00:00:00\tInformation\tScan\told line" + Environment.NewLine);
+                catalog.AddLog("Information", "Scan", "old row", DateTimeOffset.UtcNow.AddDays(-8));
+                log.Prune();
+                var text = File.ReadAllText(log.FilePath);
+                if (text.Contains("old line") || catalog.LogsSince(DateTimeOffset.UtcNow.AddDays(-30)).Any(row => row.Message == "old row"))
+                    throw new Exception("A log older than 7 days was kept.");
+                if (!text.Contains("Also found") || catalog.LogsSince(DateTimeOffset.UtcNow.AddHours(-24)).Count != 1)
+                    throw new Exception("A recent log line was removed.");
+            }
+            finally { Directory.Delete(root, true); }
+        });
         return failures == 0 ? 0 : 1;
     }
 }

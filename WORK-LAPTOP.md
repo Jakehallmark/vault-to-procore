@@ -10,7 +10,7 @@ tar -xf release\VaultTransfer-win-x64.tar.xz -C dist\win-x64
 dist\win-x64\VaultTransfer.exe
 ```
 
-Sign in to Vault Professional first if you have not already; the app uses that saved server, database, and Windows account. Choose Scan. That reads Vault project folders and the Procore project list, then matches the project numbers. It does not walk every file. The first Procore scan opens a browser. Later scans sign in without asking. Closing the window leaves it in the system tray. The app writes the match history to `vault-transfer.db` in the same folder as the executable. Extract a new build into that folder and leave the database file there. It does not upload files.
+Sign in to Vault Professional first if you have not already; the app uses that saved server, database, and Windows account. Choose Scan. That reads Vault project folders and the Procore project list, then matches the project numbers. It does not walk every file. The first Procore scan opens a browser. Later scans sign in without asking. Closing the window leaves it in the system tray. The app writes the match history to `vault-transfer.db` and a week of activity to `vault-transfer.log` in the same folder as the executable. Open Logs in the app to read the last 24 hours, 72 hours, or 7 days. Extract a new build into that folder and leave the database and log there. A failed scan waits until the next scheduled time instead of repeating immediately. If Vault lists one project number in two folders, both paths are written to the log and the first folder is kept. It does not upload files.
 
 ## Previous step: inventory the real project tree
 

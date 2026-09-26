@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.Globalization;
 
 namespace VaultTransfer;
 
 public sealed class MonitorForm : Form
 {
     private readonly Catalog catalog;
+    private readonly AppLog log;
     private readonly ScanCoordinator scans = new();
     private readonly string scriptFolder;
     private readonly NotifyIcon tray;
@@ -12,6 +14,9 @@ public sealed class MonitorForm : Form
     private readonly DataGridView fileList = Grid();
     private readonly DataGridView reviewList = Grid();
     private readonly DataGridView changeList = Grid();
+    private readonly DataGridView logList = Grid();
+    private readonly ComboBox logWindow = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
+    private readonly TextBox logDetail = new() { Dock = DockStyle.Bottom, Height = 72, ReadOnly = true, Multiline = true, BorderStyle = BorderStyle.None, BackColor = Color.White };
     private readonly TextBox findProject = new() { Dock = DockStyle.Top, PlaceholderText = "Find a project" };
     private readonly Label projectTitle = new() { AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), Margin = new Padding(0, 0, 0, 4) };
     private readonly Label projectDetail = new() { AutoSize = true, MaximumSize = new Size(760, 0) };
@@ -22,6 +27,7 @@ public sealed class MonitorForm : Form
     private readonly Panel projectsView = new() { Dock = DockStyle.Fill };
     private readonly Panel reviewView = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly Panel changesView = new() { Dock = DockStyle.Fill, Visible = false };
+    private readonly Panel logsView = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly Panel settingsView = new() { Dock = DockStyle.Fill, Visible = false, Padding = new Padding(20) };
     private readonly Label status = new() { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(16, 8, 16, 0), AutoEllipsis = true };
     private readonly List<Button> navigation = [];
@@ -32,9 +38,10 @@ public sealed class MonitorForm : Form
     private bool exiting;
     private CancellationTokenSource? running;
 
-    public MonitorForm(Catalog catalog, string scriptFolder)
+    public MonitorForm(Catalog catalog, string scriptFolder, AppLog log)
     {
         this.catalog = catalog;
+        this.log = log;
         this.scriptFolder = scriptFolder;
         Text = "Vault Transfer";
         Font = new Font("Segoe UI", 10);
@@ -48,6 +55,7 @@ public sealed class MonitorForm : Form
         navigationBar.Controls.Add(Nav("Projects", ShowProjects));
         navigationBar.Controls.Add(Nav("To approve", ShowReview));
         navigationBar.Controls.Add(Nav("Changes", ShowChanges));
+        navigationBar.Controls.Add(Nav("Logs", ShowLogs));
         navigationBar.Controls.Add(Nav("Settings", ShowSettings));
         var scan = PrimaryButton("Scan");
         scan.Dock = DockStyle.Right;
@@ -57,10 +65,12 @@ public sealed class MonitorForm : Form
         BuildProjects();
         BuildReview();
         BuildChanges();
+        BuildLogs();
         BuildSettings();
         Controls.Add(projectsView);
         Controls.Add(reviewView);
         Controls.Add(changesView);
+        Controls.Add(logsView);
         Controls.Add(settingsView);
         Controls.Add(bar);
         Controls.Add(status);
@@ -144,6 +154,7 @@ public sealed class MonitorForm : Form
         projectsView.Visible = name == "Projects";
         reviewView.Visible = name == "To approve";
         changesView.Visible = name == "Changes";
+        logsView.Visible = name == "Logs";
         settingsView.Visible = name == "Settings";
     }
 
@@ -220,6 +231,34 @@ public sealed class MonitorForm : Form
         changesView.BackColor = Color.White;
         changesView.Padding = new Padding(16, 12, 16, 8);
         changesView.Controls.Add(changeList);
+    }
+
+    private void BuildLogs()
+    {
+        logWindow.Items.AddRange(["Last 24 hours", "Last 72 hours", "Last 7 days"]);
+        logWindow.SelectedIndex = 0;
+        logWindow.Margin = new Padding(0, 4, 8, 0);
+        logWindow.SelectedIndexChanged += (_, _) => ReloadLogs();
+        var open = QuietButton("Open log file");
+        open.Click += (_, _) => OpenLogFile();
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(16, 12, 12, 8), BackColor = Color.White };
+        bar.Controls.Add(logWindow);
+        bar.Controls.Add(open);
+        logList.MultiSelect = false;
+        logList.Columns.Add("When", "When");
+        logList.Columns.Add("Level", "Level");
+        logList.Columns.Add("Source", "Source");
+        var message = logList.Columns.Add("Message", "Message");
+        logList.Columns[message].FillWeight = 360;
+        logList.SelectionChanged += (_, _) =>
+        {
+            logDetail.Text = logList.SelectedRows.Count == 0 ? "" : logList.SelectedRows[0].Cells[3].Value as string ?? "";
+        };
+        logsView.BackColor = Color.White;
+        logsView.Padding = new Padding(0, 0, 8, 8);
+        logsView.Controls.Add(logList);
+        logsView.Controls.Add(logDetail);
+        logsView.Controls.Add(bar);
     }
 
     private void BuildSettings()
@@ -331,6 +370,7 @@ public sealed class MonitorForm : Form
     private void ShowProjects() { MarkNav("Projects"); }
     private void ShowReview() { MarkNav("To approve"); }
     private void ShowChanges() { MarkNav("Changes"); }
+    private void ShowLogs() { MarkNav("Logs"); ReloadLogs(); }
     private void ShowSettings() { MarkNav("Settings"); }
 
     private static DataGridView Grid()
@@ -387,14 +427,17 @@ public sealed class MonitorForm : Form
     {
         var started = await scans.TryRun(async cancel =>
         {
+            nextScan = DateTimeOffset.UtcNow.AddHours((double)interval.Value);
             running = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+            log.Information("Scan", manual ? "Scan started." : "Scheduled scan started.");
             try
             {
                 string vaultMessage;
                 try { vaultMessage = await ScanVault(running.Token); }
                 catch (Exception error)
                 {
-                    status.Text = error.Message;
+                    log.Error("Vault", error.Message);
+                    status.Text = error.Message + NextScanText();
                     return;
                 }
                 var savedSignIn = File.Exists(ProcoreTokenPath());
@@ -403,12 +446,13 @@ public sealed class MonitorForm : Form
                 try { procoreMessage = await ScanProcore(running.Token); }
                 catch (Exception error)
                 {
-                    status.Text = vaultMessage + " Procore scan failed. " + error.Message;
+                    log.Error("Procore", error.Message);
+                    status.Text = vaultMessage + " Procore scan failed. " + error.Message + NextScanText();
                     return;
                 }
-                nextScan = DateTimeOffset.UtcNow.AddHours((double)interval.Value);
-                status.Text = vaultMessage + " " + procoreMessage + " " + ComparisonText()
-                    + " Next scan at " + nextScan.ToLocalTime().ToString("h:mm tt") + ".";
+                var finished = vaultMessage + " " + procoreMessage + " " + ComparisonText();
+                log.Information("Scan", finished);
+                status.Text = finished + NextScanText();
                 tray.ShowBalloonTip(2000, "Vault Transfer", ComparisonText(), ToolTipIcon.Info);
             }
             finally { running.Dispose(); running = null; }
@@ -426,10 +470,12 @@ public sealed class MonitorForm : Form
             {
                 var progress = new Progress<string>(text => status.Text = text);
                 await new ProcoreClient().SignIn(scriptFolder, progress, running.Token);
+                log.Information("Procore", "Procore sign-in saved.");
                 status.Text = "Procore sign-in saved.";
             }
             catch (Exception error)
             {
+                log.Error("Procore", error.Message);
                 status.Text = error.Message;
             }
             finally { running.Dispose(); running = null; }
@@ -478,18 +524,33 @@ public sealed class MonitorForm : Form
             var script = Path.Combine(scriptFolder, "VaultConnectionCheck.ps1");
             if (!File.Exists(script)) throw new InvalidDataException("Vault scan script is not next to the app.");
             var arguments = "-NoProfile -File \"" + script + "\" -ScanProjects -ProjectsOnly";
-            var progress = new Progress<string>(text => { if (text.StartsWith("Scanning:", StringComparison.Ordinal)) status.Text = text; });
+            var progress = new Progress<string>(text =>
+            {
+                if (text.StartsWith("Scanning:", StringComparison.Ordinal)) status.Text = text;
+                else if (text.Length > 0) log.Information("Vault", text);
+            });
             var output = await RunProcess(@"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", arguments, progress, cancel);
             var inventory = Newest(Path.Combine(scriptFolder, "reports"), "inventory.jsonl", started);
             var summaryPath = inventory is null ? "" : Path.Combine(Path.GetDirectoryName(inventory)!, "scan-summary.json");
             if (inventory is null || !Catalog.VaultScanFinished(summaryPath))
                 throw new InvalidDataException("Vault scan did not finish. " + Tail(output));
             var mode = Catalog.VaultScanMode(summaryPath);
-            var count = mode == "Projects"
-                ? catalog.ApplyVaultProjects(Catalog.ReadVaultProjects(inventory))
-                : catalog.ApplyVaultInventory(Catalog.ReadVaultJsonl(inventory), Catalog.VaultScanRemovesMissing(summaryPath));
-            catalog.FinishScan(id, "Succeeded", count + (mode == "Projects" ? " Vault projects." : " Vault changes."));
-            return count + " Vault projects.";
+            string summary;
+            if (mode == "Projects")
+            {
+                var applied = catalog.ApplyVaultProjects(Catalog.ReadVaultProjects(inventory));
+                foreach (var note in applied.Notes) log.Warning("Vault", note);
+                summary = applied.Projects + " Vault projects.";
+                if (applied.Notes.Count > 0)
+                    summary += " " + applied.Notes.Count + " repeated " + Plural(applied.Notes.Count, "listing") + ". See Logs.";
+            }
+            else
+            {
+                var count = catalog.ApplyVaultInventory(Catalog.ReadVaultJsonl(inventory), Catalog.VaultScanRemovesMissing(summaryPath));
+                summary = count + " Vault changes.";
+            }
+            catalog.FinishScan(id, "Succeeded", summary);
+            return summary;
         }
         catch (Exception error)
         {
@@ -517,6 +578,8 @@ public sealed class MonitorForm : Form
             throw;
         }
     }
+
+    private string NextScanText() => " Next scan at " + nextScan.ToLocalTime().ToString("h:mm tt") + ".";
 
     private string ComparisonText()
     {
@@ -621,6 +684,7 @@ public sealed class MonitorForm : Form
         ShowFiles();
         ReloadReview();
         ReloadChanges();
+        if (logsView.Visible) ReloadLogs();
     }
 
     private void ReloadProjects()
@@ -679,5 +743,28 @@ public sealed class MonitorForm : Form
         changeList.Rows.Clear();
         foreach (var change in catalog.Changes(300))
             changeList.Rows.Add(change.When, change.Project, ChangeLabel(change.Kind), change.Version, change.Path);
+    }
+
+    private void ReloadLogs()
+    {
+        var hours = logWindow.SelectedIndex switch { 0 => 24, 1 => 72, _ => 24 * 7 };
+        logList.Rows.Clear();
+        logDetail.Clear();
+        foreach (var entry in catalog.LogsSince(DateTimeOffset.UtcNow.AddHours(-hours)))
+            logList.Rows.Add(LocalWhen(entry.When), entry.Level, entry.Source, entry.Message);
+        if (logList.Rows.Count > 0) logList.Rows[0].Selected = true;
+    }
+
+    private void OpenLogFile()
+    {
+        if (!File.Exists(log.FilePath)) log.Information("App", "Log file created.");
+        Process.Start(new ProcessStartInfo(log.FilePath) { UseShellExecute = true });
+    }
+
+    private static string LocalWhen(string utc)
+    {
+        if (!DateTimeOffset.TryParse(utc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
+            return utc;
+        return parsed.ToLocalTime().ToString("yyyy-MM-dd h:mm:ss tt", CultureInfo.CurrentCulture);
     }
 }

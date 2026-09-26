@@ -4,7 +4,7 @@ A manually launched Windows app intended to scan Autodesk Vault Professional 202
 
 ## Current status
 
-**Vault Transfer is a tray application.** Close the window and it keeps running from the notification area. Scan reads the Vault project folders and the Procore project list, then matches project numbers. It does not read every file. The database is `vault-transfer.db` in the same folder as `VaultTransfer.exe`. Replacing the program leaves that file in place.
+**Vault Transfer is a tray application.** Close the window and it keeps running from the notification area. Scan reads the Vault project folders and the Procore project list, then matches project numbers. It does not read every file. The database is `vault-transfer.db` in the same folder as `VaultTransfer.exe`. The same folder keeps `vault-transfer.log` for 7 days, and Logs in the app shows the last 24 hours, 72 hours, or 7 days. Replacing the program leaves those files in place.
 
 Publish the work-laptop build from this folder:
 

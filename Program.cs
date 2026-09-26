@@ -16,7 +16,9 @@ internal static class Program
         {
             using var instance = new FileStream(Path.Combine(appFolder, "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             using var catalog = new Catalog(appFolder);
-            using var form = new MonitorForm(catalog, AppContext.BaseDirectory);
+            var log = new AppLog(catalog, appFolder);
+            log.Information("App", "Vault Transfer opened.");
+            using var form = new MonitorForm(catalog, appFolder, log);
             Application.Run(form);
             return 0;
         }

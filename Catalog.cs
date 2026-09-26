@@ -12,6 +12,8 @@ public sealed record FileRow(string FileId, string ProjectNumber, string Documen
 public sealed record ChangeRow(string When, string Project, string Kind, string Version, string Path);
 public sealed record ScanRow(string Source, string Status, string Ended, string Summary);
 public sealed record MatchCounts(int Matched, int VaultOnly, int ProcoreOnly, int NeedsReview);
+public sealed record LogRow(string When, string Level, string Source, string Message);
+public sealed record VaultProjectScan(int Projects, IReadOnlyList<string> Notes);
 
 public sealed class Catalog : IDisposable
 {
@@ -105,6 +107,16 @@ public sealed class Catalog : IDisposable
               active INTEGER
             )
             """);
+        Sql("""
+            CREATE TABLE IF NOT EXISTS logs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              logged_utc TEXT NOT NULL,
+              level TEXT NOT NULL,
+              source TEXT NOT NULL,
+              message TEXT NOT NULL
+            )
+            """);
+        Sql("CREATE INDEX IF NOT EXISTS logs_time ON logs(logged_utc)");
         Sql("CREATE INDEX IF NOT EXISTS files_project ON files(project_number)");
         Sql("CREATE INDEX IF NOT EXISTS changes_project ON changes(project_number)");
         if (!string.IsNullOrEmpty(legacyCatalogPath)) ImportLegacy(legacyCatalogPath);
@@ -151,21 +163,70 @@ public sealed class Catalog : IDisposable
         }
     }
 
-    public int ApplyVaultProjects(IReadOnlyList<string> folderPaths)
+    public VaultProjectScan ApplyVaultProjects(IReadOnlyList<string> folderPaths)
     {
         lock (gate)
         {
             using var transaction = db.BeginTransaction();
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var path in folderPaths)
+            var kept = new Dictionary<string, string>(StringComparer.Ordinal);
+            var notes = new List<string>();
+            foreach (var folderPath in folderPaths)
             {
+                var path = folderPath.Trim();
                 if (!TrySplitProject(path, out var number, out var folder)) continue;
-                if (!seen.Add(number)) throw new InvalidDataException("Vault returned the same project number twice.");
+                if (kept.TryGetValue(number, out var first))
+                {
+                    notes.Add(string.Equals(first, path, StringComparison.OrdinalIgnoreCase)
+                        ? "Project " + number + " was listed twice at " + path + "."
+                        : "Project " + number + " appears in more than one Vault folder. Kept " + first + ". Also found " + path + ".");
+                    continue;
+                }
+                kept[number] = path;
                 EnsureProject(number, path, folder);
                 RefreshMatch(number);
             }
             transaction.Commit();
-            return seen.Count;
+            return new VaultProjectScan(kept.Count, notes);
+        }
+    }
+
+    public void AddLog(string level, string source, string message, DateTimeOffset when)
+    {
+        lock (gate)
+        {
+            Sql("""
+                INSERT INTO logs (logged_utc, level, source, message)
+                VALUES ($when, $level, $source, $message)
+                """,
+                ("$when", when.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture)),
+                ("$level", level), ("$source", source), ("$message", message));
+        }
+    }
+
+    public IReadOnlyList<LogRow> LogsSince(DateTimeOffset since)
+    {
+        lock (gate)
+        {
+            using var command = Command("""
+                SELECT logged_utc, level, source, message
+                FROM logs WHERE logged_utc >= $since
+                ORDER BY id DESC LIMIT 2000
+                """);
+            command.Parameters.AddWithValue("$since", since.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture));
+            var rows = new List<LogRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                rows.Add(new LogRow(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+            return rows;
+        }
+    }
+
+    public int PruneLogs(DateTimeOffset before)
+    {
+        lock (gate)
+        {
+            return Sql("DELETE FROM logs WHERE logged_utc < $before",
+                ("$before", before.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture)));
         }
     }
 
