@@ -5,7 +5,8 @@ param(
     [string]$PreferencesPath,
     [switch]$ScanProjects,
     [switch]$ProjectsOnly,
-    [string]$ChangedSince = ''
+    [string]$ChangedSince = '',
+    [string]$ScanRoot = '$/Designs/Projects'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -171,9 +172,9 @@ try {
     Write-Host ('SUCCESS: Windows login accepted; read-only Vault root query returned folder ID ' + $RootFolder.Id + '.')
     Write-Host 'No document was downloaded, changed, checked out, or uploaded.'
     if ($ScanProjects) {
-        $ScanArguments = @{ Connection = $Connection }
-        if ($ChangedSince) { $ScanArguments.ChangedSince = $ChangedSince }
-        if ($ProjectsOnly) { $ScanArguments.ProjectsOnly = $true }
+        $ScanArguments = @{ Connection = $Connection; ScanRoot = $ScanRoot }
+        if ($ChangedSince) { [void]$ScanArguments.Add('ChangedSince', $ChangedSince) }
+        if ($ProjectsOnly) { [void]$ScanArguments.Add('ProjectsOnly', $true) }
         & (Join-Path $PSScriptRoot 'ScanVaultProjects.ps1') @ScanArguments
     }
 }

@@ -2,6 +2,20 @@
 
 A manually launched Windows app intended to scan Autodesk Vault Professional 2024, apply company rules, present a transfer report for approval or denial, stage approved file versions locally, and automatically upload them through the installed Procore Drive application.
 
+## September 27 reliability and file browser update
+
+- **Scan projects** performs shallow Vault discovery and reuses saved Procore details. Sparse Procore list rows are refreshed at most once every 24 hours; new IDs and changed metadata are read immediately. Existing catalogs receive an initial 24-hour cache window on upgrade. Detail refreshes save progress as they go, including when a later request fails.
+- Select a Vault project and choose **Load / refresh files** to scan only that project's folder tree. Browse the folder tree, select files (Ctrl/Shift for multiple files), and approve or deny them. Folder selection includes descendant files. Refreshing an empty project removes only that project's old file records. Failed or cancelled scans retain the cached list.
+- **Stop** cancels the current operation and its Vault helper. Scheduled scans never open an unattended login browser; use Settings to reconnect if authorization expires.
+- Temporary token-server failures retain the encrypted saved sign-in. OAuth callback reads time out, malformed callbacks are rejected, and project requests have bounded retries with HTTP status and endpoint diagnostics. Request pacing follows Procore's returned rate-limit headers, with a conservative fallback ([Procore rate-limit guidance](https://github.com/procore/documentation/blob/main/plan_your_app/rate_limiting.md)).
+- The workspace has a wider searchable project list, Vault names before matching, project/match totals, larger rows, folder navigation, refresh timestamps, and explicit empty states.
+
+This update supports inventory and approval. Uploads to Procore are still not implemented. Live authentication, Vault file enumeration, and actual timing must be verified on the work laptop/VPN.
+
+The separately packaged update is `release/VaultTransfer-win-x64-reliability.zip`. Exit the app from its tray menu and extract the update into the existing app folder. Keep `.secrets`, `vault-transfer.db`, and your existing reports. The package contains no credentials or database.
+
+Developer verification: `dotnet build --no-restore` and `dotnet bin/Debug/net10.0-windows/VaultTransfer.dll --self-test`. An offline UI snapshot can be generated with `--ui-snapshot <output.png>`; this opens the local catalog but runs no scheduled scan.
+
 ## Current status
 
 **Vault Transfer is a tray application.** Close the window and it keeps running from the notification area. Scan reads the Vault project folders and the Procore project list, then matches project numbers. It does not read every file. The database is `vault-transfer.db` in the same folder as `VaultTransfer.exe`. The same folder keeps `vault-transfer.log` for 7 days, and Logs in the app shows the last 24 hours, 72 hours, or 7 days. Replacing the program leaves those files in place.

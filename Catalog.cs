@@ -120,6 +120,8 @@ public sealed class Catalog : IDisposable
         Sql("CREATE INDEX IF NOT EXISTS files_project ON files(project_number)");
         Sql("CREATE INDEX IF NOT EXISTS changes_project ON changes(project_number)");
         if (!string.IsNullOrEmpty(legacyCatalogPath)) ImportLegacy(legacyCatalogPath);
+        // Start a bounded cache window for catalogs created before per-project freshness tracking.
+        Sql("INSERT OR IGNORE INTO settings (key, value) SELECT 'procore_checked_' || project_id, $now FROM procore_seen", ("$now", Now()));
     }
 
     public string GetSetting(string key, string fallback)
@@ -230,11 +232,13 @@ public sealed class Catalog : IDisposable
         }
     }
 
-    public int ApplyVaultInventory(IReadOnlyList<VaultFileRecord> files, bool complete)
+    public int ApplyVaultInventory(IReadOnlyList<VaultFileRecord> files, bool complete, string? scopePath = null)
     {
         lock (gate)
         {
             using var transaction = db.BeginTransaction();
+            if (scopePath is not null && files.Any(file => !file.VaultPath.StartsWith(scopePath.TrimEnd('/') + "/", StringComparison.Ordinal)))
+                throw new InvalidDataException("The scan returned files outside the selected project.");
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var projects = new HashSet<string>(StringComparer.Ordinal);
             var changes = 0;
@@ -249,7 +253,7 @@ public sealed class Catalog : IDisposable
             }
             if (complete)
             {
-                foreach (var existing in CurrentFiles().Where(file => !seen.Contains(file.FileId)))
+                foreach (var existing in CurrentFiles().Where(file => !seen.Contains(file.FileId) && (scopePath is null || file.VaultPath.StartsWith(scopePath.TrimEnd('/') + "/", StringComparison.Ordinal))))
                 {
                     Sql("UPDATE files SET missing = 1, last_seen = $seen WHERE file_id = $id",
                         ("$seen", Now()), ("$id", existing.FileId));
@@ -275,6 +279,11 @@ public sealed class Catalog : IDisposable
         }
     }
 
+    public string VaultProjectPath(string number)
+    {
+        lock (gate) return FindProject(number)?.VaultPath ?? "";
+    }
+
     public bool ProcoreUnchanged(string projectId, string? updatedAt, bool comparable, string? number, string? name, bool? active)
     {
         lock (gate)
@@ -290,7 +299,10 @@ public sealed class Catalog : IDisposable
                         ("$updated", updatedAt), ("$id", projectId));
                 return true;
             }
-            return false;
+            // Sparse company-list rows have no change signal. Reuse details for 24 hours.
+            return !comparable && string.IsNullOrEmpty(updatedAt)
+                && DateTimeOffset.TryParse(GetSetting("procore_checked_" + projectId, ""), out var checkedAt)
+                && checkedAt > DateTimeOffset.UtcNow.AddHours(-24);
         }
     }
 
@@ -300,6 +312,7 @@ public sealed class Catalog : IDisposable
         {
             using var transaction = db.BeginTransaction();
             RememberProcore(incoming);
+            SetSetting("procore_checked_" + incoming.ProjectId, Now());
             var number = string.IsNullOrWhiteSpace(incoming.Number) ? incoming.ProjectId : incoming.Number;
             var project = EnsureProject(number, "", "");
             if (project.ProcoreName.StartsWith("Needs review:", StringComparison.Ordinal)

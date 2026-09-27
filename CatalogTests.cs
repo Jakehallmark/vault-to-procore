@@ -10,6 +10,29 @@ internal static class CatalogTests
             try { run(); Console.WriteLine("PASS " + name); }
             catch (Exception error) { failures++; Console.WriteLine("FAIL " + name + ": " + error.Message); }
         }
+        Test("Project file refresh removes only files inside its own scope", () =>
+        {
+            var root = Directory.CreateTempSubdirectory("VaultScope-").FullName;
+            try
+            {
+                using var catalog = new Catalog(root, null);
+                var a = "$/Designs/Projects/101000-101999/101001 - A";
+                var b = "$/Designs/Projects/101000-101999/101002 - B";
+                catalog.ApplyVaultInventory([new(a + "/a.pdf", "1", 1), new(b + "/b.pdf", "2", 1)], true);
+                catalog.ApplyVaultInventory([], true, a);
+                if (catalog.Files("101001", null).Count != 0 || catalog.Files("101002", null).Count != 1)
+                    throw new Exception("Scoped refresh changed another project.");
+                try { catalog.ApplyVaultInventory([new(b + "/c.pdf", "3", 1)], true, a); throw new Exception("Out-of-scope inventory accepted."); }
+                catch (InvalidDataException) { }
+                if (catalog.Files("101002", null).Count != 1) throw new Exception("Invalid scan changed cached files.");
+                catalog.SaveProcoreProject(new("12233", "99", "101002", "B", true));
+                if (!catalog.ProcoreUnchanged("99", null, false, null, null, null)) throw new Exception("Fresh sparse metadata was re-read.");
+                catalog.SetSetting("procore_checked_99", DateTimeOffset.UtcNow.AddDays(-2).ToString("o"));
+                if (catalog.ProcoreUnchanged("99", null, false, null, null, null)) throw new Exception("Expired metadata was retained.");
+                if (catalog.ProcoreUnchanged("100", null, false, null, null, null)) throw new Exception("New project was skipped.");
+            }
+            finally { Directory.Delete(root, true); }
+        });
         Test("Vault versions, removals, Procore links, and staged files stay with one project", () =>
         {
             var root = Directory.CreateTempSubdirectory("VaultCatalog-").FullName;

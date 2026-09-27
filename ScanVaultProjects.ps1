@@ -26,6 +26,7 @@ $Seen = New-Object 'System.Collections.Generic.HashSet[long]'
 $Folders.Push($StartFolder)
 $FileCount = 0
 $FolderCount = 0
+$FolderPaths = New-Object System.Collections.Generic.List[string]
 $Finished = $false
 $Failure = 'Interrupted before completion.'
 $Started = [DateTime]::UtcNow.ToString('o')
@@ -144,6 +145,7 @@ try {
     while ($Folders.Count -gt 0) {
         $Folder = $Folders.Pop()
         if (-not $Seen.Add([long]$Folder.Id)) { throw 'A folder was returned twice; scan stopped for review.' }
+        $FolderPaths.Add([string]$Folder.FullName)
         Write-Host ('Scanning: ' + $Folder.FullName)
         # Include hidden file records returned to this authenticated user.
         foreach ($VaultFile in $Documents.GetLatestFilesByFolderId($Folder.Id, $true)) {
@@ -189,6 +191,7 @@ finally {
     Write-Host ('Reports: ' + $RunFolder)
 }
 
+ConvertTo-Json -InputObject @($FolderPaths.ToArray()) | Set-Content -LiteralPath (Join-Path $RunFolder 'folders.json') -Encoding UTF8
 Move-Item -LiteralPath $CsvPath -Destination (Join-Path $RunFolder 'inventory.csv')
 Move-Item -LiteralPath $JsonPath -Destination (Join-Path $RunFolder 'inventory.jsonl')
 if ($ProjectsOnly) { Write-Host ('SCAN COMPLETE: ' + $FileCount + ' project folders in ' + $FolderCount + ' range folders.') }

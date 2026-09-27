@@ -12,6 +12,23 @@ internal static class Program
         }
         ApplicationConfiguration.Initialize();
         var appFolder = AppContext.BaseDirectory;
+        if (args.Length == 2 && args[0] == "--ui-snapshot")
+        {
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+            try
+            {
+                // Offline layout diagnostic: no message loop or scheduled scans.
+                using var catalog = new Catalog(appFolder);
+                using var form = new MonitorForm(catalog, appFolder, new AppLog(catalog, appFolder));
+                form.Show();
+                form.PerformLayout();
+                using var bitmap = new Bitmap(form.Width, form.Height);
+                form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                bitmap.Save(Path.GetFullPath(args[1]), System.Drawing.Imaging.ImageFormat.Png);
+                return 0;
+            }
+            catch (Exception error) { Console.WriteLine(error); return 1; }
+        }
         try
         {
             using var instance = new FileStream(Path.Combine(appFolder, "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
